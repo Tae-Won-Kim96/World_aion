@@ -1,0 +1,582 @@
+import { CLASSES } from '../data/classes';
+import { DUNGEONS } from '../data/dungeons';
+import { ENEMIES } from '../data/enemies';
+import { RACES } from '../data/races';
+import { SKILLS } from '../data/skills';
+import type { BattleSpec, Darkness } from '../dungeon';
+import { Rng } from '../rng';
+import { computeEffects, computeStats, fullName } from '../stats';
+import {
+  type Character, type ClassDef, type DamageKind, defaultEffects, type Effects, type FxKind, type Role,
+  type SkillDef, STAT_KEYS, type Stats, type StatusApply, type StatusId,
+} from '../types';
+
+export const GRID_W = 10;
+export const GRID_H = 7;
+
+export interface Status { id: StatusId; turns: number; value?: number }
+
+export interface Unit {
+  uid: string;
+  side: 'ally' | 'enemy';
+  name: string;
+  charId?: string;
+  enemyDef?: string;
+  seed: number;
+  x: number;
+  y: number;
+  stats: Stats;
+  maxHp: number;
+  hp: number;
+  eff: Effects;
+  tags: string[];
+  role: Role;
+  attack: ClassDef['attack'];
+  skills: string[];
+  cd: Record<string, number>;
+  statuses: Status[];
+  ct: number;
+  alive: boolean;
+  vampire: boolean;
+  boss: boolean;
+  elite: boolean;
+  cheatDeath: number;
+  kills: number;
+  level: number;
+}
+
+export interface Obstacle { x: number; y: number; kind: string }
+
+export type BEvent =
+  | { t: 'cast'; src: string; fx: FxKind; x: number; y: number; area: number; projectile: boolean; name: string }
+  | { t: 'dmg'; src: string; dst: string; amount: number; crit: boolean; fx: FxKind }
+  | { t: 'heal'; src: string; dst: string; amount: number }
+  | { t: 'status'; dst: string; id: StatusId }
+  | { t: 'death'; dst: string; by: string }
+  | { t: 'cheat'; dst: string }
+  | { t: 'push'; dst: string; x: number; y: number }
+  | { t: 'dot'; dst: string; amount: number; id: StatusId }
+  | { t: 'stun'; dst: string }
+  | { t: 'log'; text: string };
+
+export interface BattleState {
+  w: number;
+  h: number;
+  obstacles: Obstacle[];
+  units: Unit[];
+  turn: number;
+  rng: Rng;
+  darkness: Darkness;
+  morale: number;
+  over: null | 'victory' | 'defeat';
+  log: string[];
+  cheatUsed: string[];
+}
+
+export interface Action { id: string; name: string; skill: SkillDef; isAttack: boolean }
+
+export const STATUS_NAMES: Record<StatusId, string> = {
+  bleed: '출혈', poison: '중독', burn: '화상', stun: '기절', weak: '약화', vuln: '취약', guard: '방어',
+  taunt: '도발', regen: '재생', bless: '축복', slow: '둔화', haste: '가속', shield: '보호막', mark: '표식',
+};
+export const BAD_STATUS: StatusId[] = ['bleed', 'poison', 'burn', 'stun', 'weak', 'vuln', 'slow', 'mark'];
+
+// ---------------------------------------------------------------- 생성
+
+function unitFromChar(ch: Character, hp: number, morale: number): Unit {
+  const stats = computeStats(ch);
+  const m = 1 + 0.04 * morale;
+  for (const k of ['atk', 'mag', 'def', 'res'] as const) stats[k] = Math.round(stats[k] * m);
+  const c = CLASSES[ch.cls];
+  const eff = computeEffects(ch);
+  return {
+    uid: ch.id, side: 'ally', name: fullName(ch), charId: ch.id, seed: ch.seed,
+    x: 0, y: 0, stats, maxHp: stats.hp, hp: Math.min(stats.hp, hp),
+    eff, tags: [...RACES[ch.race].tags, ...(ch.vampire ? ['vampire', 'unholy'] : [])], role: c.role,
+    attack: c.attack, skills: [...ch.skills], cd: {}, statuses: [], ct: 0, alive: hp > 0,
+    vampire: ch.vampire, boss: false, elite: false, cheatDeath: eff.cheatDeath, kills: 0, level: ch.level,
+  };
+}
+
+export function enemyStats(defId: string, level: number): Stats {
+  const def = ENEMIES[defId];
+  const c = CLASSES[def.cls];
+  const r = RACES[def.race];
+  const s = {} as Stats;
+  for (const k of STAT_KEYS) {
+    const base = (c.base[k] ?? 0) + (r.statMod[k] ?? 0);
+    s[k] = base * (def.mul[k] ?? 1) + (c.growth[k] ?? 0) * (level - 1) * 0.9;
+    s[k] = k === 'mov' ? Math.round(s[k]) : Math.round(s[k]);
+  }
+  s.mov = Math.max(2, s.mov);
+  return s;
+}
+
+function unitFromEnemy(defId: string, level: number, seed: number, idx: number): Unit {
+  const def = ENEMIES[defId];
+  const c = CLASSES[def.cls];
+  const stats = enemyStats(defId, level);
+  return {
+    uid: `e${idx}_${defId}`, side: 'enemy', name: def.name, enemyDef: defId, seed,
+    x: 0, y: 0, stats, maxHp: stats.hp, hp: stats.hp, eff: defaultEffects(),
+    tags: [...new Set([...def.tags, ...RACES[def.race].tags])], role: c.role, attack: c.attack,
+    skills: [...def.skills], cd: {}, statuses: [], ct: 0, alive: true, vampire: false,
+    boss: !!def.boss, elite: !!def.elite, cheatDeath: 0, kills: 0, level,
+  };
+}
+
+export interface BattleInput {
+  party: { char: Character; hp: number }[];
+  spec: BattleSpec;
+  morale: number;
+}
+
+export function createBattle(input: BattleInput): BattleState {
+  const rng = new Rng(input.spec.seed);
+  const st: BattleState = {
+    w: GRID_W, h: GRID_H, obstacles: [], units: [], turn: 0, rng,
+    darkness: input.spec.darkness, morale: input.morale, over: null, log: [], cheatUsed: [],
+  };
+  const allies = input.party.filter((p) => p.hp > 0).map((p) => unitFromChar(p.char, p.hp, input.morale));
+  const enemies = input.spec.enemies.map((e, i) => unitFromEnemy(e.def, e.level, e.seed, i));
+
+  const rows = [1, 3, 5, 2, 4, 0, 6];
+  allies.forEach((u, i) => {
+    const front = u.role === 'tank' || u.role === 'melee';
+    u.x = front ? 1 : 0;
+    u.y = rows[i % rows.length];
+  });
+  enemies.forEach((u, i) => {
+    const front = u.role === 'tank' || u.role === 'melee' || u.boss;
+    u.x = front ? GRID_W - 2 : GRID_W - 1;
+    u.y = u.boss ? 3 : rows[i % rows.length];
+  });
+  // 겹침 해소
+  const taken = new Set<string>();
+  for (const u of [...allies, ...enemies]) {
+    let tries = 0;
+    while (taken.has(`${u.x},${u.y}`) && tries < 30) {
+      u.y = (u.y + 1) % GRID_H;
+      if (tries % GRID_H === GRID_H - 1) u.x += u.side === 'ally' ? 1 : -1;
+      tries++;
+    }
+    taken.add(`${u.x},${u.y}`);
+  }
+  st.units = [...allies, ...enemies];
+
+  // 장애물: 중앙 지대에 배치하되 양 진영이 이어지도록
+  const theme = DUNGEONS[input.spec.theme]?.theme.obstacles ?? ['rubble'];
+  const n = rng.int(4, 7);
+  for (let i = 0; i < n * 3 && st.obstacles.length < n; i++) {
+    const x = rng.int(2, GRID_W - 3);
+    const y = rng.int(0, GRID_H - 1);
+    if (taken.has(`${x},${y}`)) continue;
+    st.obstacles.push({ x, y, kind: rng.pick(theme) });
+    if (!connected(st)) st.obstacles.pop();
+    else taken.add(`${x},${y}`);
+  }
+
+  for (const u of st.units) {
+    u.ct = rng.int(0, 30) + u.stats.spd * 2;
+    if (u.eff.firstStrike) u.ct += 60;
+    if (u.side === 'enemy' && input.spec.ambush) u.ct += 60;
+    if (u.eff.cowardice > 0 && rng.chance(u.eff.cowardice)) u.statuses.push({ id: 'slow', turns: 2 });
+  }
+  if (input.spec.ambush) st.log.push('기습당했다! 적이 먼저 움직인다.');
+  return st;
+}
+
+function connected(st: BattleState): boolean {
+  const start = { x: 0, y: 3 };
+  const seen = new Set<string>([`${start.x},${start.y}`]);
+  const q = [start];
+  while (q.length) {
+    const p = q.shift()!;
+    for (const [dx, dy] of DIRS) {
+      const nx = p.x + dx;
+      const ny = p.y + dy;
+      const k = `${nx},${ny}`;
+      if (nx < 0 || ny < 0 || nx >= st.w || ny >= st.h || seen.has(k)) continue;
+      if (st.obstacles.some((o) => o.x === nx && o.y === ny)) continue;
+      seen.add(k);
+      q.push({ x: nx, y: ny });
+    }
+  }
+  return seen.size >= st.w * st.h - st.obstacles.length;
+}
+
+// ---------------------------------------------------------------- 유틸
+
+export const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+export const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+export function unitAt(st: BattleState, x: number, y: number): Unit | undefined {
+  return st.units.find((u) => u.alive && u.x === x && u.y === y);
+}
+
+export function blocked(st: BattleState, x: number, y: number): boolean {
+  if (x < 0 || y < 0 || x >= st.w || y >= st.h) return true;
+  return st.obstacles.some((o) => o.x === x && o.y === y);
+}
+
+export function hasStatus(u: Unit, id: StatusId): boolean {
+  return u.statuses.some((s) => s.id === id && s.turns > 0);
+}
+
+export function effSpd(u: Unit): number {
+  let s = u.stats.spd;
+  if (hasStatus(u, 'haste')) s *= 1.3;
+  if (hasStatus(u, 'slow')) s *= 0.7;
+  return Math.max(1, s);
+}
+
+export function effMov(u: Unit): number {
+  return Math.max(1, u.stats.mov - (hasStatus(u, 'slow') ? 1 : 0));
+}
+
+export function actionsOf(u: Unit): Action[] {
+  const atk: SkillDef = {
+    id: 'attack', name: u.attack.name, desc: '기본 공격', kind: u.attack.kind, target: 'enemy',
+    range: u.attack.range, area: 0, power: 1, cooldown: 0, fx: u.attack.fx, projectile: u.attack.projectile,
+  };
+  const list: Action[] = [{ id: 'attack', name: u.attack.name, skill: atk, isAttack: true }];
+  for (const id of u.skills) {
+    const s = SKILLS[id];
+    if (s) list.push({ id, name: s.name, skill: s, isAttack: false });
+  }
+  return list;
+}
+
+export function actionReady(u: Unit, a: Action): boolean {
+  return (u.cd[a.id] ?? 0) <= 0;
+}
+
+// ---------------------------------------------------------------- 턴 진행
+
+/** 다음 행동할 유닛까지 CT를 진행 */
+export function advance(st: BattleState): Unit {
+  for (let guard = 0; guard < 10000; guard++) {
+    const ready = st.units.filter((u) => u.alive && u.ct >= 100);
+    if (ready.length) {
+      ready.sort((a, b) => b.ct - a.ct || b.stats.spd - a.stats.spd);
+      return ready[0];
+    }
+    for (const u of st.units) if (u.alive) u.ct += effSpd(u);
+  }
+  throw new Error('advance: no unit');
+}
+
+/** 앞으로의 행동 순서 예측 */
+export function predictOrder(st: BattleState, n: number): Unit[] {
+  const sim = st.units.filter((u) => u.alive).map((u) => ({ u, ct: u.ct, spd: effSpd(u) }));
+  const out: Unit[] = [];
+  for (let g = 0; g < 5000 && out.length < n && sim.length; g++) {
+    const ready = sim.filter((s) => s.ct >= 100).sort((a, b) => b.ct - a.ct || b.spd - a.spd);
+    if (ready.length) {
+      out.push(ready[0].u);
+      ready[0].ct -= 100;
+      continue;
+    }
+    for (const s of sim) s.ct += s.spd;
+  }
+  return out;
+}
+
+/** 턴 시작 처리. 기절이면 true(턴 넘김) */
+export const BLOOD_MOON_TURN = 200;
+
+export function startTurn(st: BattleState, u: Unit, ev: BEvent[]): boolean {
+  st.turn++;
+  if (st.turn === BLOOD_MOON_TURN) {
+    // 교착 방지: 모두가 취약해진다
+    for (const x of st.units) if (x.alive) x.statuses.push({ id: 'vuln', turns: 999 });
+    ev.push({ t: 'log', text: '피의 달이 떠올랐다… 모두가 취약해진다.' });
+  }
+  for (const k of Object.keys(u.cd)) u.cd[k] = Math.max(0, u.cd[k] - 1);
+  const dots: [StatusId, number][] = [['bleed', 0.05], ['poison', 0.06], ['burn', 0.07]];
+  for (const [id, pct] of dots) {
+    if (!hasStatus(u, id)) continue;
+    const amount = Math.max(1, Math.round(u.maxHp * pct));
+    u.hp -= amount;
+    ev.push({ t: 'dot', dst: u.uid, amount, id });
+    if (u.hp <= 0) {
+      handleLethal(st, u, STATUS_NAMES[id], ev);
+      if (!u.alive) return true;
+    }
+  }
+  let regen = u.eff.regen;
+  if (hasStatus(u, 'regen')) regen += 0.08;
+  if (regen > 0 && u.hp < u.maxHp) {
+    const amount = Math.max(1, Math.round(u.maxHp * regen));
+    const real = Math.min(amount, u.maxHp - u.hp);
+    u.hp += real;
+    if (real > 0) ev.push({ t: 'heal', src: u.uid, dst: u.uid, amount: real });
+  }
+  if (hasStatus(u, 'stun')) {
+    ev.push({ t: 'stun', dst: u.uid });
+    return true;
+  }
+  return false;
+}
+
+export function endTurn(st: BattleState, u: Unit): void {
+  u.ct -= 100;
+  for (const s of u.statuses) if (s.id !== 'shield' || s.turns > 0) s.turns--;
+  u.statuses = u.statuses.filter((s) => s.turns > 0 && !(s.id === 'shield' && (s.value ?? 0) <= 0));
+  checkOver(st);
+}
+
+export function checkOver(st: BattleState): BattleState['over'] {
+  if (!st.units.some((u) => u.side === 'enemy' && u.alive)) st.over = 'victory';
+  else if (!st.units.some((u) => u.side === 'ally' && u.alive)) st.over = 'defeat';
+  return st.over;
+}
+
+// ---------------------------------------------------------------- 이동
+
+export function reachableTiles(st: BattleState, u: Unit): { x: number; y: number; d: number }[] {
+  const mov = effMov(u);
+  const out: { x: number; y: number; d: number }[] = [{ x: u.x, y: u.y, d: 0 }];
+  const seen = new Map<string, number>([[`${u.x},${u.y}`, 0]]);
+  const q = [{ x: u.x, y: u.y, d: 0 }];
+  while (q.length) {
+    const p = q.shift()!;
+    if (p.d >= mov) continue;
+    for (const [dx, dy] of DIRS) {
+      const nx = p.x + dx;
+      const ny = p.y + dy;
+      const k = `${nx},${ny}`;
+      if (seen.has(k) || blocked(st, nx, ny)) continue;
+      const occ = unitAt(st, nx, ny);
+      if (occ && occ.side !== u.side) continue; // 적은 통과 불가
+      seen.set(k, p.d + 1);
+      q.push({ x: nx, y: ny, d: p.d + 1 });
+      if (!occ) out.push({ x: nx, y: ny, d: p.d + 1 });
+    }
+  }
+  return out;
+}
+
+export function findPath(st: BattleState, u: Unit, tx: number, ty: number): { x: number; y: number }[] {
+  const prev = new Map<string, string | null>([[`${u.x},${u.y}`, null]]);
+  const q = [{ x: u.x, y: u.y }];
+  while (q.length) {
+    const p = q.shift()!;
+    if (p.x === tx && p.y === ty) break;
+    for (const [dx, dy] of DIRS) {
+      const nx = p.x + dx;
+      const ny = p.y + dy;
+      const k = `${nx},${ny}`;
+      if (prev.has(k) || blocked(st, nx, ny)) continue;
+      const occ = unitAt(st, nx, ny);
+      if (occ && occ.side !== u.side) continue;
+      prev.set(k, `${p.x},${p.y}`);
+      q.push({ x: nx, y: ny });
+    }
+  }
+  const path: { x: number; y: number }[] = [];
+  let cur: string | null | undefined = `${tx},${ty}`;
+  if (!prev.has(cur)) return [];
+  while (cur) {
+    const [x, y] = cur.split(',').map(Number);
+    path.unshift({ x, y });
+    cur = prev.get(cur);
+  }
+  return path;
+}
+
+export function moveUnit(st: BattleState, u: Unit, x: number, y: number): boolean {
+  if (!reachableTiles(st, u).some((t) => t.x === x && t.y === y)) return false;
+  u.x = x;
+  u.y = y;
+  return true;
+}
+
+// ---------------------------------------------------------------- 대상
+
+export function inRange(a: Action, from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  const d = dist(from, to);
+  return d >= a.skill.range[0] && d <= a.skill.range[1];
+}
+
+/** 이 행동으로 지정 가능한 칸들 */
+export function targetTiles(st: BattleState, u: Unit, a: Action, from: { x: number; y: number } = u): { x: number; y: number }[] {
+  const s = a.skill;
+  if (s.target === 'self') return [{ x: from.x, y: from.y }];
+  const out: { x: number; y: number }[] = [];
+  for (let y = 0; y < st.h; y++) {
+    for (let x = 0; x < st.w; x++) {
+      if (!inRange(a, from, { x, y })) continue;
+      if (s.target === 'tile') { if (!blocked(st, x, y)) out.push({ x, y }); continue; }
+      const t = unitAt(st, x, y);
+      if (!t) {
+        if (s.target === 'ally' && x === from.x && y === from.y) out.push({ x, y });
+        continue;
+      }
+      if (s.target === 'enemy' && t.side !== u.side) out.push({ x, y });
+      if (s.target === 'ally' && t.side === u.side && t !== u) out.push({ x, y });
+      if (s.target === 'ally' && t === u && s.range[0] === 0) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+/** 실제로 영향을 받는 유닛 */
+export function affectedUnits(st: BattleState, u: Unit, a: Action, tx: number, ty: number, from: { x: number; y: number } = u): Unit[] {
+  const s = a.skill;
+  const friendly = s.kind === 'heal' || s.kind === 'buff';
+  const center = s.target === 'self' ? from : { x: tx, y: ty };
+  const units = st.units.filter((v) => v.alive);
+  const posOf = (v: Unit) => (v === u ? from : v);
+  if (s.area === 0) {
+    if (s.target === 'self') return [u];
+    const t = units.find((v) => posOf(v).x === tx && posOf(v).y === ty);
+    if (!t) return [];
+    return friendly === (t.side === u.side) ? [t] : [];
+  }
+  return units.filter((v) => dist(posOf(v), center) <= s.area && (friendly ? v.side === u.side : v.side !== u.side));
+}
+
+// ---------------------------------------------------------------- 피해 계산
+
+function atkMul(u: Unit): number {
+  let m = 1;
+  if (hasStatus(u, 'bless')) m *= 1.25;
+  if (hasStatus(u, 'weak')) m *= 0.75;
+  if (u.eff.lowHpRage && u.hp < u.maxHp * 0.5) m *= 1 + u.eff.lowHpRage;
+  return m * u.eff.dmgMul;
+}
+
+function guardAuraFor(st: BattleState, t: Unit): number {
+  let best = 0;
+  for (const v of st.units) {
+    if (!v.alive || v === t || v.side !== t.side) continue;
+    if (dist(v, t) === 1) best = Math.max(best, v.eff.guardAura);
+  }
+  return best;
+}
+
+export function estimateDamage(st: BattleState, u: Unit, t: Unit, s: SkillDef): number {
+  return damageCore(st, u, t, s, false, 1).dmg;
+}
+
+function damageCore(st: BattleState, u: Unit, t: Unit, s: SkillDef, crit: boolean, variance: number): { dmg: number } {
+  const kind: DamageKind = s.kind === 'phys' ? 'phys' : 'mag';
+  const base = kind === 'phys' ? u.stats.atk : u.stats.mag;
+  let raw = base * s.power * 1.25 * atkMul(u);
+  const def = (kind === 'phys' ? t.stats.def : t.stats.res) * (1 - (s.pierce ?? 0));
+  raw *= 30 / (30 + Math.max(0, def) * 2.5);
+  const tags = [...t.tags];
+  if (t.hp < t.maxHp * 0.5) tags.push('wounded');
+  if (s.bonusVsTag && tags.includes(s.bonusVsTag.tag)) raw *= s.bonusVsTag.mul;
+  let vs = 0;
+  for (const tag of tags) vs += u.eff.dmgVsTag[tag] ?? 0;
+  raw *= 1 + vs;
+  const holy = s.fx === 'holy' || u.eff.holyAttack;
+  if (holy) {
+    raw *= 1 + (t.eff.dmgTakenTag.holy ?? 0);
+    if (t.tags.includes('unholy')) raw *= 1.2;
+  }
+  if (crit) raw *= 1.5 + u.eff.critDmg;
+  if (hasStatus(t, 'guard')) raw *= 0.7;
+  if (hasStatus(t, 'vuln')) raw *= 1.25;
+  if (hasStatus(t, 'mark')) raw *= 1.2;
+  raw *= 1 - guardAuraFor(st, t);
+  raw *= t.eff.dmgTakenMul;
+  if (u.side === 'enemy' && !t.eff.nightVision) raw *= st.darkness === 'dark' ? 1.15 : st.darkness === 'dim' ? 1.05 : 1;
+  raw *= variance;
+  return { dmg: Math.max(1, Math.round(raw)) };
+}
+
+function healAmount(u: Unit, s: SkillDef): number {
+  return Math.max(1, Math.round(Math.max(u.stats.mag, u.stats.atk * 0.6) * s.power * u.eff.healMul));
+}
+
+function applyStatus(st: BattleState, src: Unit, t: Unit, a: StatusApply, ev: BEvent[]): void {
+  if (a.chance !== undefined && !st.rng.chance(a.chance)) return;
+  if (t.boss && a.id === 'stun' && st.rng.chance(0.5)) return; // 보스는 기절 저항
+  const value = a.id === 'shield' ? Math.round((a.value ?? 1) * Math.max(src.stats.mag, src.stats.def)) : a.value;
+  const ex = t.statuses.find((s) => s.id === a.id);
+  if (ex) { ex.turns = Math.max(ex.turns, a.turns); if (value) ex.value = Math.max(ex.value ?? 0, value); }
+  else t.statuses.push({ id: a.id, turns: a.turns, value });
+  ev.push({ t: 'status', dst: t.uid, id: a.id });
+}
+
+function handleLethal(st: BattleState, t: Unit, by: string, ev: BEvent[]): void {
+  if (t.cheatDeath > 0) {
+    t.cheatDeath--;
+    t.hp = 1;
+    if (t.charId && !st.cheatUsed.includes(t.charId)) st.cheatUsed.push(t.charId);
+    ev.push({ t: 'cheat', dst: t.uid });
+    ev.push({ t: 'log', text: `${t.name}이(가) 죽음을 거부했다!` });
+    return;
+  }
+  t.hp = 0;
+  t.alive = false;
+  ev.push({ t: 'death', dst: t.uid, by });
+}
+
+function dealDamage(st: BattleState, u: Unit, t: Unit, s: SkillDef, ev: BEvent[]): number {
+  const crit = s.kind === 'phys' || s.kind === 'mag' ? st.rng.chance(u.stats.crit / 100) : false;
+  let { dmg } = damageCore(st, u, t, s, crit, st.rng.float(0.9, 1.1));
+  const shield = t.statuses.find((x) => x.id === 'shield' && (x.value ?? 0) > 0);
+  if (shield) {
+    const absorbed = Math.min(shield.value!, dmg);
+    shield.value! -= absorbed;
+    dmg -= absorbed;
+  }
+  t.hp -= dmg;
+  ev.push({ t: 'dmg', src: u.uid, dst: t.uid, amount: dmg, crit, fx: s.fx });
+  if (t.hp <= 0) {
+    handleLethal(st, t, u.name, ev);
+    if (!t.alive) u.kills++;
+  }
+  return dmg;
+}
+
+/** 행동 실행 */
+export function performAction(st: BattleState, u: Unit, a: Action, tx: number, ty: number): BEvent[] {
+  const ev: BEvent[] = [];
+  const s = a.skill;
+  const targets = affectedUnits(st, u, a, tx, ty);
+  const cx = s.target === 'self' ? u.x : tx;
+  const cy = s.target === 'self' ? u.y : ty;
+  ev.push({ t: 'cast', src: u.uid, fx: s.fx, x: cx, y: cy, area: s.area, projectile: !!s.projectile, name: a.name });
+  if (s.hpCost) {
+    const cost = Math.round(u.maxHp * s.hpCost);
+    u.hp = Math.max(1, u.hp - cost);
+  }
+  let dealt = 0;
+  for (const t of targets) {
+    if (!t.alive) continue;
+    if (s.kind === 'phys' || s.kind === 'mag' || (s.kind === 'debuff' && s.power > 0)) {
+      dealt += dealDamage(st, u, t, s, ev);
+    }
+    if (s.kind === 'heal') {
+      const amt = Math.min(healAmount(u, s), t.maxHp - t.hp);
+      t.hp += amt;
+      ev.push({ t: 'heal', src: u.uid, dst: t.uid, amount: amt });
+    }
+    if (t.alive) for (const sa of s.status ?? []) applyStatus(st, u, t, sa, ev);
+    if (t.alive && s.push) {
+      const dx = Math.sign(t.x - u.x);
+      const dy = dx === 0 ? Math.sign(t.y - u.y) : 0;
+      const nx = t.x + dx * s.push;
+      const ny = t.y + dy * s.push;
+      if (!blocked(st, nx, ny) && !unitAt(st, nx, ny)) {
+        t.x = nx;
+        t.y = ny;
+        ev.push({ t: 'push', dst: t.uid, x: nx, y: ny });
+      }
+    }
+  }
+  for (const sa of s.selfStatus ?? []) applyStatus(st, u, u, sa, ev);
+  const ls = (s.lifesteal ?? 0) + u.eff.lifesteal;
+  if (ls > 0 && dealt > 0 && u.alive) {
+    const amt = Math.min(Math.round(dealt * ls), u.maxHp - u.hp);
+    if (amt > 0) { u.hp += amt; ev.push({ t: 'heal', src: u.uid, dst: u.uid, amount: amt }); }
+  }
+  if (s.cooldown > 0) u.cd[a.id] = s.cooldown;
+  checkOver(st);
+  return ev;
+}
