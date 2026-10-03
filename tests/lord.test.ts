@@ -5,16 +5,16 @@ import { generateMap, makeBattle, type RunState } from '../src/core/dungeon';
 import { Rng } from '../src/core/rng';
 import { LORD_ID, LORD_SLOTS, migrate, newGame, type SaveData, Store } from '../src/core/state';
 
-describe('혈주', () => {
-  test('새 게임에 혈주가 있고, 동료 목록에는 없다', () => {
+describe('지휘관', () => {
+  test('새 게임에 지휘관이 있고, 동료 목록에는 없다', () => {
     const s = new Store(newGame(1));
     expect(s.char(LORD_ID)?.isLord).toBe(true);
     expect(s.s.roster.some((c) => c.isLord)).toBe(false);
     expect(s.release(LORD_ID).ok).toBe(false);
-    expect(s.lord().skills[0]).toBe('lord_fang');
+    expect(s.lord().skills.slice(0, 2)).toEqual(['core_strike', 'rally']);
   });
 
-  test('예전 저장 데이터도 혈주와 창고가 채워진다', () => {
+  test('예전 저장 데이터도 지휘관과 창고가 채워진다', () => {
     const old = newGame(2) as Partial<SaveData>;
     delete old.lordChar;
     delete old.stash;
@@ -26,11 +26,24 @@ describe('혈주', () => {
     expect(new Store(d).lord().level).toBe(3);
   });
 
-  test('흡혈하면 그 동료의 기술을 흡수한다', () => {
+  test('v0.2 저장(혈주·진홍의 혈맹)은 지휘관·핵의 맹약단으로 바뀐다', () => {
+    const old = newGame(8);
+    (old.lordChar as { race: string }).race = 'dhampir';
+    old.lordChar.cls = 'bloodlord';
+    old.lordChar.given = '혈주';
+    old.roster[0].house = 'crimson';
+    const d = migrate(old);
+    expect(d.lordChar.race).toBe('corebearer');
+    expect(d.lordChar.cls).toBe('commander');
+    expect(d.lordChar.given).toBe('지휘관');
+    expect(d.roster[0].house).toBe('core_covenant');
+  });
+
+  test('결속하면 그 동료의 기술을 기록한다', () => {
     const s = new Store(newGame(3));
     s.s.essence = 10;
-    const c = s.s.roster.find((x) => s.turnCheck(x.id).ok)!;
-    s.turn(c.id);
+    const c = s.s.roster.find((x) => s.bindCheck(x.id).ok)!;
+    s.bindCompanion(c.id);
     for (const id of c.skills) expect(s.s.lord.learned).toContain(id);
   });
 
@@ -42,7 +55,7 @@ describe('혈주', () => {
     expect(s.toggleLordSkill(extra).ok).toBe(false);
   });
 
-  test('혈주는 쓰러져도 묘지에 가지 않고 원정 1회 휴면한다', () => {
+  test('지휘관은 쓰러져도 묘지에 가지 않고 원정 1회 휴면한다', () => {
     const s = new Store(newGame(5));
     s.startRun('necropolis', [LORD_ID, s.s.roster[0].id]);
     s.battleDeath(LORD_ID, '해골 병사');
@@ -63,7 +76,7 @@ describe('혈주', () => {
     const run = { dungeon: 'necropolis', nodes: generateMap(DUNGEONS.necropolis, 1), current: null, torch: 80, relics: [] } as unknown as RunState;
     const st = createBattle({ party: [{ char: lord, hp: 50 }], spec: makeBattle(run, 'battle', [lord], new Rng(1)), morale: 0 });
     const u = st.units.find((x) => x.uid === LORD_ID)!;
-    expect(u.skills).toContain('lord_fang');
-    expect(u.eff.lifesteal).toBeGreaterThan(0);
+    expect(u.skills).toContain('core_strike');
+    expect(u.eff.regen).toBeGreaterThan(0);
   });
 });

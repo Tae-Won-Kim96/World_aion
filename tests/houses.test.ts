@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { HOUSES } from '../src/core/data/houses';
 import { generateCharacter, houseEligible } from '../src/core/gen/character';
-import { applyTurn, canTurn, vampireSlots } from '../src/core/vampire';
+import { applyBind, canBind, bindSlots } from '../src/core/bond';
 import type { Character } from '../src/core/types';
 
 function make(over: Partial<Character>): Character {
@@ -17,28 +17,28 @@ describe('가문 조건', () => {
     expect(houseEligible(h, make({ traits: ['oath'], race: 'elf' }))).toBe(false);
     expect(houseEligible(h, make({ traits: ['oath'], cls: 'mage' }))).toBe(false);
   });
-  test('진홍의 혈맹은 뱀파이어 상태에서만', () => {
-    expect(houseEligible(HOUSES.crimson, make({ vampire: false }))).toBe(false);
-    expect(houseEligible(HOUSES.crimson, make({ vampire: true }))).toBe(true);
+  test('핵의 맹약단은 결속 상태에서만', () => {
+    expect(houseEligible(HOUSES.core_covenant, make({ vampire: false }))).toBe(false);
+    expect(houseEligible(HOUSES.core_covenant, make({ vampire: true }))).toBe(true);
   });
 });
 
-describe('흡혈', () => {
-  test('천사와 신족, 흡혈귀 사냥꾼은 흡혈할 수 없다', () => {
+describe('결속', () => {
+  test('천사와 신족, 흡혈귀 사냥꾼은 결속할 수 없다', () => {
     const ctx = { essence: 99, vampires: 0, lordLevel: 10 };
-    expect(canTurn(make({ race: 'angel' }), ctx).ok).toBe(false);
-    expect(canTurn(make({ race: 'divine' }), ctx).ok).toBe(false);
-    expect(canTurn(make({ cls: 'vhunter' }), ctx).ok).toBe(false);
-    expect(canTurn(make({}), ctx).ok).toBe(true);
+    expect(canBind(make({ race: 'angel' }), ctx).ok).toBe(false);
+    expect(canBind(make({ race: 'divine' }), ctx).ok).toBe(false);
+    expect(canBind(make({ cls: 'vhunter' }), ctx).ok).toBe(false);
+    expect(canBind(make({}), ctx).ok).toBe(true);
   });
-  test('혈주 레벨이 뱀파이어 수를 제한한다', () => {
-    expect(canTurn(make({}), { essence: 99, vampires: vampireSlots(1), lordLevel: 1 }).ok).toBe(false);
+  test('지휘관 레벨이 결속 수를 제한한다', () => {
+    expect(canBind(make({}), { essence: 99, vampires: bindSlots(1), lordLevel: 1 }).ok).toBe(false);
   });
-  test('흡혈하면 성스러운 기사단에서 파문되고 진홍의 혈맹에 초대된다', () => {
+  test('결속하면 성스러운 기사단에서 파문되고 핵의 맹약단에 초대된다', () => {
     const c = make({ traits: ['oath'], house: 'halton', surname: '할튼' });
-    const msgs = applyTurn(c);
+    const msgs = applyBind(c);
     expect(c.vampire).toBe(true);
-    expect(c.house).toBe('crimson');
+    expect(c.house).toBe('core_covenant');
     expect(c.surname).toBe('');
     expect(msgs.join(' ')).toContain('파문');
   });

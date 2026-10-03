@@ -104,7 +104,7 @@ function unitFromChar(ch: Character, hp: number, morale: number): Unit {
   return {
     uid: ch.id, side: 'ally', name: fullName(ch), charId: ch.id, seed: ch.seed,
     x: 0, y: 0, stats, maxHp: stats.hp, hp: Math.min(stats.hp, hp),
-    eff, tags: [...RACES[ch.race].tags, ...(ch.vampire ? ['vampire', 'unholy'] : [])], role: c.role,
+    eff, tags: [...RACES[ch.race].tags, ...(ch.vampire ? ['bound'] : [])], role: c.role,
     attack: c.attack, skills: [...ch.skills], cd: {}, statuses: [], ct: 0, alive: hp > 0,
     vampire: ch.vampire, boss: false, elite: false, cheatDeath: eff.cheatDeath, kills: 0, level: ch.level,
   };
@@ -580,6 +580,8 @@ function damageCore(st: BattleState, u: Unit, t: Unit, s: SkillDef, crit: boolea
   if (hasStatus(t, 'vuln')) raw *= 1.25;
   if (hasStatus(t, 'mark')) raw *= 1.2;
   raw *= 1 - guardAuraFor(st, t);
+  // 공격자 특징에 따른 받는 피해 (예: 결속자는 균열 피해에 약함)
+  for (const tag of u.tags) raw *= 1 + (t.eff.dmgTakenTag[tag] ?? 0);
   raw *= t.eff.dmgTakenMul;
   if (u.side === 'enemy' && !t.eff.nightVision) raw *= st.darkness === 'dark' ? 1.15 : st.darkness === 'dim' ? 1.05 : 1;
   raw *= variance;
@@ -654,7 +656,7 @@ function onAllyKill(st: BattleState, u: Unit, ev: BEvent[]): void {
   }
   if (st.relics.includes('finger_bone') && st.rng.chance(0.08)) {
     st.bonusEssence++;
-    ev.push({ t: 'log', text: '성자의 손가락뼈가 떨린다… 피의 정수 +1' });
+    ev.push({ t: 'log', text: '성자의 손가락뼈가 떨린다… 핵 조각 +1' });
   }
 }
 

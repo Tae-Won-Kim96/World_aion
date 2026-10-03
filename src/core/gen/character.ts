@@ -59,7 +59,7 @@ export function houseEligible(h: HouseDef, ch: Character): boolean {
   if (c.noTraits && c.noTraits.some((t) => all.includes(t))) return false;
   if (c.vampire !== undefined && c.vampire !== ch.vampire) return false;
   if (c.blessing && ch.blessings.length === 0) return false;
-  if (ch.vampire && h.forbidVampire) return false;
+  if (ch.vampire && h.forbidBound) return false;
   return true;
 }
 

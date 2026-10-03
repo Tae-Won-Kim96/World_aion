@@ -11,7 +11,7 @@ import { SKILLS } from '../core/data/skills';
 import { LORD_SLOTS, PARTY_SIZE, STASH_CAP, store } from '../core/state';
 import { compatibility, DISCORD_T, fullName, HARMONY_T, partySynergy, powerScore, topFactions } from '../core/stats';
 import type { Character, FactionId, GearSlot } from '../core/types';
-import { lordExpToNext, vampireSlots } from '../core/vampire';
+import { lordExpToNext, bindSlots } from '../core/bond';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
 import { charCard, charDetail, houseChip, itemRow, raceClassLine, starsEl } from './widgets';
 import { app } from './app';
@@ -20,14 +20,14 @@ function resBar(): HTMLElement {
   const s = store.s;
   const lordPct = (s.lord.exp / lordExpToNext(s.lord.level)) * 100;
   return h('div', { class: 'topbar' },
-    h('span', { class: 'title' }, '혈주의 저택'),
+    h('span', { class: 'title' }, '재건 거점'),
     h('span', { class: 'res' }, h('span', { class: 'gold' }, '◆'), `금화 ${s.gold.toLocaleString()}`),
-    tooltip(h('span', { class: 'res' }, h('span', { class: 'vamp' }, '●'), `피의 정수 ${s.essence}`), '동료를 뱀파이어로 만드는 데 쓰인다.\n정예·보스·제단·보물에서 얻는다.'),
-    tooltip(h('span', { class: 'res' }, h('span', { class: 'vamp' }, '🦇'), `뱀파이어 ${store.vampireCount()}/${vampireSlots(s.lord.level)}`), '혈주 레벨이 오르면 한도가 늘어난다.'),
+    tooltip(h('span', { class: 'res' }, h('span', { class: 'core' }, '◆'), `핵 조각 ${s.essence}`), '세계핵의 파편. 동료를 결속하거나 시설을 지을 때 쓴다.\n정예·보스·제단·보물에서 얻는다.'),
+    tooltip(h('span', { class: 'res' }, h('span', { class: 'core' }, '◈'), `결속 ${store.boundCount()}/${bindSlots(s.lord.level)}`), '지휘관 레벨이 오르면 결속 한도가 늘어난다.'),
     h('span', { class: 'res' }, `동료 ${s.roster.length}/${ROSTER_CAP}`),
     h('span', { class: 'res' }, `묘비 ${s.graveyard.length}`),
     h('span', { class: 'grow' }),
-    h('span', { class: 'res' }, `혈주 Lv.${s.lord.level}`),
+    h('span', { class: 'res' }, `지휘관 Lv.${s.lord.level}`),
     h('div', { style: { width: '120px' } }, h('div', { class: 'bar lord' }, h('i', { style: { width: `${lordPct}%` } }))),
   );
 }
@@ -40,8 +40,8 @@ export function renderTown(): void {
     h('div', { class: 'town-menu' },
       menuBtn('⚔ 원정 출발', '던전으로 파티를 보낸다', openExpedition, 'primary'),
       menuBtn('✉ 모집소', `1회 ${PULL_COST} · 10회 ${PULL10_COST} 금화`, openRecruit, 'gold'),
-      menuBtn('♛ 혈주', `Lv.${s.lord.level} · 기술 ${s.lord.learned.length}개${s.lordChar.dormant ? ' · 휴면' : ''}`, openLord),
-      menuBtn('☗ 동료', `${s.roster.length}명 · 흡혈 의식`, () => openRoster()),
+      menuBtn('♛ 지휘관', `Lv.${s.lord.level} · 기술 ${s.lord.learned.length}개${s.lordChar.dormant ? ' · 휴면' : ''}`, openLord),
+      menuBtn('☗ 동료', `${s.roster.length}명 · 결속 의식`, () => openRoster()),
       menuBtn('✝ 묘지', `${s.graveyard.length}개의 묘비`, openGraveyard),
       menuBtn('⚑ 진영', '세력별 호감도와 상성', openFactions),
       menuBtn('▣ 창고', `장비 ${s.stash.length}/${STASH_CAP}`, openStash),
@@ -52,10 +52,10 @@ export function renderTown(): void {
       h('ul', { class: 'scroll' }, ...s.news.slice(0, 14).map((n) => h('li', null, n.text))),
     ),
     h('div', { class: 'lordbox panel thin small dim', style: { lineHeight: '1.7' } },
-      h('div', { class: 'gold' }, '혈주의 규칙'),
+      h('div', { class: 'gold' }, '세계핵의 규칙'),
       h('div', null, '· 필멸자는 성장하지만, 죽으면 묘지로 간다.'),
-      h('div', null, '· 뱀파이어는 성장이 멈추지만, 쓰러져도 관에서 다시 깨어난다.'),
-      h('div', null, `· 원정 ${s.stats.runs}회 · 정복 ${s.stats.victories} · 사망 ${s.stats.deaths} · 흡혈 ${s.stats.turned}`),
+      h('div', null, '· 결속자는 성장이 멈추지만, 쓰러져도 세계핵에서 다시 형체를 갖춘다.'),
+      h('div', null, `· 원정 ${s.stats.runs}회 · 정복 ${s.stats.victories} · 사망 ${s.stats.deaths} · 결속 ${s.stats.turned}`),
     ),
   );
   setScreen(screen);
@@ -125,22 +125,22 @@ export function openRoster(focusId?: string): void {
     else detailWrap.appendChild(h('div', { class: 'dim' }, '동료가 없다. 모집소에서 새 동료를 찾아보자.'));
   };
   const actionsFor = (ch: Character): HTMLElement => {
-    const chk = store.turnCheck(ch.id);
+    const chk = store.bindCheck(ch.id);
     const turnBtn = h('button', {
       class: 'btn primary', disabled: !chk.ok,
       onclick: () => confirmBox(
-        `${fullName(ch)}에게 송곳니를 박는다. 피의 정수 ${chk.cost}개가 든다.\n\n뱀파이어가 되면 더 이상 성장하지 않지만, 쓰러져도 묘지로 가지 않고 관 속에서 다시 깨어난다. 되돌릴 수 없다.`,
-        '흡혈한다', () => {
-          const r = store.turn(ch.id);
-          modal(h('div', { class: 'col', style: { width: '460px' } }, h('h2', { class: 'vamp' }, '흡혈 의식'), ...r.msgs.map((m) => h('div', { style: { lineHeight: '1.7' } }, m))));
+        `${fullName(ch)}을(를) 세계핵에 결속한다. 핵 조각 ${chk.cost}개가 든다.\n\n결속자는 더 이상 성장하지 않지만, 쓰러져도 묘지로 가지 않고 세계핵에서 다시 형체를 갖춘다. 지휘관은 그의 기술을 배운다. 되돌릴 수 없다.`,
+        '결속한다', () => {
+          const r = store.bindCompanion(ch.id);
+          modal(h('div', { class: 'col', style: { width: '460px' } }, h('h2', { class: 'core' }, '결속 의식'), ...r.msgs.map((m) => h('div', { style: { lineHeight: '1.7' } }, m))));
           render();
           renderTown();
         }),
-    }, `🦇 흡혈 의식 (정수 ${chk.cost})`);
+    }, `◈ 결속 의식 (핵 조각 ${chk.cost})`);
     const turnWrap = h('div', { class: 'col', style: { width: '100%', gap: '4px' } }, turnBtn, !chk.ok && chk.reason ? h('div', { class: 'small mute center' }, chk.reason) : null);
     const relBtn = h('button', {
       class: 'btn small danger',
-      onclick: () => confirmBox(`${fullName(ch)}을(를) 저택에서 내보낸다. (금화 ${10 * ch.star} 회수) 되돌릴 수 없다.`, '방출', () => {
+      onclick: () => confirmBox(`${fullName(ch)}을(를) 거점에서 내보낸다. (금화 ${10 * ch.star} 회수) 되돌릴 수 없다.`, '방출', () => {
         const r = store.release(ch.id);
         if (!r.ok) toast(r.reason!, 'warn');
         selected = store.s.roster[0]?.id;
@@ -260,7 +260,7 @@ function openFactions(): void {
 }
 
 // ================================================================== 설정
-// ================================================================== 혈주
+// ================================================================== 지휘관
 function openLord(): void {
   const body = h('div', { class: 'col', style: { height: '100%' } });
   const render = () => {
@@ -269,15 +269,15 @@ function openLord(): void {
     const L = store.s.lord;
     const lordPct = (L.exp / lordExpToNext(L.level)) * 100;
     const panel = h('div', { class: 'col', style: { width: '100%', gap: '4px', marginTop: '6px' } },
-      h('div', { class: 'small dim' }, `혈주 경험치 ${L.exp}/${lordExpToNext(L.level)}`),
+      h('div', { class: 'small dim' }, `지휘관 경험치 ${L.exp}/${lordExpToNext(L.level)}`),
       h('div', { class: 'bar lord' }, h('i', { style: { width: `${lordPct}%` } })),
-      h('div', { class: 'small dim' }, `뱀파이어 한도 ${store.vampireCount()}/${vampireSlots(L.level)}`),
-      h('div', { class: 'small gold' }, `흡수한 기술 ${L.learned.length} · 장착 ${L.equipped.length}/${LORD_SLOTS}`),
+      h('div', { class: 'small dim' }, `결속 한도 ${store.boundCount()}/${bindSlots(L.level)}`),
+      h('div', { class: 'small gold' }, `기록한 기술 ${L.learned.length} · 장착 ${L.equipped.length}/${LORD_SLOTS}`),
       h('button', { class: 'btn primary', onclick: () => openLordSkills(render) }, '기술 관리'),
     );
     body.append(
-      h('h2', { style: { marginRight: '28px' } }, '혈주'),
-      h('div', { class: 'small dim', style: { lineHeight: '1.6' } }, '혈주는 직접 원정에 나설 수 있다(파티 한 자리 차지). 흡혈한 동료의 기술을 모두 흡수하고, 함께 싸워 이기면 동료의 기술을 익히기도 한다. 쓰러져도 죽지 않고 원정 1회 동안 휴면한다.'),
+      h('h2', { style: { marginRight: '28px' } }, '지휘관'),
+      h('div', { class: 'small dim', style: { lineHeight: '1.6' } }, '지휘관은 직접 원정에 나설 수 있다(파티 한 자리 차지). 동료를 결속하면 그 기술을 세계핵에 기록하고, 함께 싸워 이기면 동료의 기술을 익히기도 한다. 쓰러져도 죽지 않고 원정 1회 동안 휴면한다.'),
       charDetail(lord, panel, (slot) => openGearPicker(lord, slot, render)),
     );
   };
@@ -291,8 +291,8 @@ function openLordSkills(onDone: () => void): void {
     clear(body);
     const L = store.s.lord;
     body.append(
-      h('h2', null, `혈주의 기술 — 장착 ${L.equipped.length}/${LORD_SLOTS}`),
-      h('div', { class: 'small dim' }, '「혈주의 송곳니」는 항상 사용할 수 있다. 나머지는 흡수한 기술 중에서 고른다.'),
+      h('h2', null, `지휘관의 기술 — 장착 ${L.equipped.length}/${LORD_SLOTS}`),
+      h('div', { class: 'small dim' }, '「핵의 일격」과 「지휘」는 항상 사용할 수 있다. 나머지는 세계핵에 기록한 기술 중에서 고른다.'),
       h('div', { class: 'col scroll', style: { gap: '4px', maxHeight: '460px' } }, ...L.learned.map((id) => {
         const sk = SKILLS[id];
         const on = L.equipped.includes(id);

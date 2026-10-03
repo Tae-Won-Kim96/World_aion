@@ -19,8 +19,9 @@ export type Affinity = Partial<Record<FactionId, number>>;
 export type RaceId =
   | 'divine' | 'angel' | 'demon' | 'elf' | 'darkelf' | 'dwarf' | 'gnome' | 'halfling'
   | 'imp' | 'human' | 'orc' | 'troll' | 'deepone' | 'beastkin'
-  // 혈주 전용
-  | 'dhampir'
+  | 'vampire'
+  // 지휘관 전용
+  | 'corebearer'
   // 적 전용
   | 'skeleton' | 'ghoul' | 'goblin' | 'wraith';
 
@@ -34,15 +35,18 @@ export type FxKind =
 export type WeaponKind =
   | 'sword' | 'greatsword' | 'axe' | 'greataxe' | 'spear' | 'dagger' | 'bow' | 'crossbow'
   | 'staff' | 'wand' | 'mace' | 'hammer' | 'fist' | 'lute' | 'scythe' | 'totem' | 'flask'
-  | 'katar' | 'trident' | 'book';
-export type OffhandKind = 'none' | 'shield' | 'tower' | 'book' | 'orb' | 'dagger' | 'lantern';
+  | 'katar' | 'trident' | 'book'
+  | 'syringe' | 'cleaver' | 'whip' | 'shovel' | 'bottle' | 'parasol' | 'puppet' | 'smoker' | 'sickle' | 'chakram' | 'musket';
+export type OffhandKind = 'none' | 'shield' | 'tower' | 'book' | 'orb' | 'dagger' | 'lantern' | 'torch' | 'skull' | 'bell' | 'buckler' | 'cage';
 export type HeadgearKind =
   | 'none' | 'helm' | 'greathelm' | 'wizard' | 'hood' | 'mitre' | 'circlet' | 'crown'
   | 'feather' | 'antlers' | 'bandana' | 'goggles' | 'tricorn' | 'witch' | 'skullcap'
-  | 'veil' | 'horned' | 'straw' | 'cowboy';
+  | 'veil' | 'horned' | 'straw' | 'cowboy'
+  | 'beret' | 'tophat' | 'plaguemask' | 'jester' | 'flowercrown' | 'headband' | 'turban' | 'laurel' | 'tiara' | 'buckethelm' | 'beehat';
 export type OutfitKind =
   | 'plate' | 'chain' | 'leather' | 'robe' | 'vestment' | 'cloak' | 'tunic' | 'tribal'
-  | 'gi' | 'dress' | 'coat' | 'rags' | 'bone';
+  | 'gi' | 'dress' | 'coat' | 'rags' | 'bone'
+  | 'apron' | 'suit' | 'labcoat' | 'motley' | 'wrap' | 'scale' | 'fur' | 'bandages' | 'overalls' | 'sash' | 'cassock';
 
 export type StatusId =
   | 'bleed' | 'poison' | 'burn' | 'stun' | 'weak' | 'vuln' | 'guard' | 'taunt'
@@ -122,25 +126,39 @@ export interface TraitDef {
   minStar?: number;
 }
 
+export interface HslRangeT { h: [number, number]; s: [number, number]; l: [number, number] }
+
 export interface RaceLook {
-  skin: string[][];          // 피부 팔레트 후보 [base, shade, light]
+  skin?: string[][];         // 피부 팔레트 후보 [base, shade, light] (기본색만 쓰고 음영은 자동)
+  skinTone?: [number, number]; // 사람 피부 톤 곡선 범위 (0 밝음 ~ 1 어두움)
+  skinGen?: HslRangeT;       // 절차적 피부 HSL 범위
+  hairGen?: HslRangeT;       // 절차적 머리색 HSL 범위
   hairColors?: string[];     // 머리색 후보(없으면 공용)
   eyeColors?: string[];
-  ears?: 'human' | 'pointy' | 'long' | 'fin' | 'beast' | 'none';
-  horns?: 'none' | 'small' | 'curl' | 'large';
-  wings?: 'none' | 'feather' | 'bat' | 'small_bat';
+  ears?: 'human' | 'pointy' | 'long' | 'fin' | 'beast' | 'none' | 'cat' | 'fox' | 'rabbit' | 'bear' | 'wolf';
+  horns?: 'none' | 'small' | 'curl' | 'large' | 'bull' | 'branch';
+  wings?: 'none' | 'feather' | 'bat' | 'small_bat' | 'butterfly' | 'bird';
   halo?: boolean;
-  tail?: 'none' | 'devil' | 'beast' | 'fish';
+  tail?: 'none' | 'devil' | 'beast' | 'fish' | 'fox' | 'cat' | 'rabbit' | 'lizard' | 'bull';
+  crest?: 'mushroom' | 'flame' | 'leaf' | 'crystal' | 'wisp' | 'feathers'; // 머리카락 대신
+  skinPattern?: 'scales' | 'bark' | 'stone' | 'metal' | 'stitches' | 'spots';
+  snout?: boolean;
+  beak?: boolean;
+  legs?: 'fishtail' | 'hooves';
+  translucent?: boolean;
+  aura?: string;             // 외곽선 발광색
+  slitEyes?: boolean;
   tusks?: boolean;
   bigNose?: boolean;
   beardChance?: number;
-  height?: 'short' | 'normal' | 'tall';
+  height?: 'tiny' | 'short' | 'normal' | 'tall';
   bald?: boolean;
   skull?: boolean;           // 해골 얼굴
   glowEyes?: string;         // 빛나는 눈 색
   gills?: boolean;
   freckles?: number;
   muzzle?: boolean;
+  fangs?: boolean;
 }
 
 export interface RaceDef {
@@ -151,8 +169,8 @@ export interface RaceDef {
   minStar: Star;
   statMod: Partial<Stats>;
   affinity: Affinity;
-  canTurn: boolean;
-  turnNote?: string;
+  canBind: boolean;
+  bindNote?: string;
   tags: string[];
   look: RaceLook;
   classBias?: Record<string, number>;
@@ -205,7 +223,7 @@ export interface HouseDef {
   affinity: Affinity;
   colors: [string, string]; // 가문색 (의상에 반영)
   emblem: string;           // 표시용 문자
-  forbidVampire?: boolean;  // 흡혈 시 파문
+  forbidBound?: boolean;  // 결속 시 파문
   rarity: 'named' | 'legendary';
 }
 
@@ -252,7 +270,7 @@ export interface Character {
   roll: Partial<Stats>;   // 개체값 (생성 시 결정)
   vampire: boolean;
   turnedAtLevel?: number;
-  dormant: number;        // 뱀파이어 휴면(남은 원정 수)
+  dormant: number;        // 결속자·지휘관 휴면(남은 원정 수)
   kills: number;
   runs: number;
   createdAt: number;

@@ -53,8 +53,8 @@ function partyPanel(run: RunState): HTMLElement {
       spriteEl(lookFromCharacter(ch), 1.5, { className: fallen ? 'dormant' : '' }),
       h('div', { class: 'info' },
         h('div', { class: 'nm' }, fullName(ch)),
-        h('div', { class: 'row', style: { gap: '4px' } }, starsEl(ch.star), h('span', { class: 'small dim' }, `Lv.${ch.level}`), ch.vampire ? h('span', { class: 'vamp small' }, '🦇') : null),
-        fallen ? h('div', { class: 'small vamp' }, '⚰ 재가 되어 휴면 중') : h('div', null, hpBar(hp, max), h('span', { class: 'small dim' }, `${hp}/${max}`)),
+        h('div', { class: 'row', style: { gap: '4px' } }, starsEl(ch.star), h('span', { class: 'small dim' }, `Lv.${ch.level}`), ch.vampire ? h('span', { class: 'core small' }, '◈') : null),
+        fallen ? h('div', { class: 'small core' }, '◈ 빛으로 흩어져 휴면 중') : h('div', null, hpBar(hp, max), h('span', { class: 'small dim' }, `${hp}/${max}`)),
       ),
     ));
   }
@@ -132,7 +132,7 @@ export function renderRun(): void {
       h('h3', null, '원정 기록'),
       h('div', { class: 'scroll small dim', style: { maxHeight: '560px', lineHeight: '1.7' } },
         ...[...run.log].reverse().map((l) => h('div', null, l)),
-        ...run.fallen.map((f) => h('div', { class: f.vampire ? 'vamp' : 'bad' }, f.vampire ? `⚰ ${f.name} 휴면` : `✝ ${f.name} 사망`)),
+        ...run.fallen.map((f) => h('div', { class: f.vampire ? 'vamp' : 'bad' }, f.vampire ? `◈ ${f.name} 휴면` : `✝ ${f.name} 사망`)),
       ),
     ),
   );
@@ -211,9 +211,9 @@ function showResult(run: RunState): void {
   const lines: string[] = [];
   if (run.outcome === 'victory') lines.push(`「${DUNGEONS[run.dungeon].name}」의 주인을 쓰러뜨렸다.`);
   if (run.outcome === 'wipe') lines.push('원정대가 모두 쓰러졌다. 모은 전리품은 어둠 속에 남겨졌다.');
-  if (run.outcome === 'retreat') lines.push('살아남은 자들이 짐을 챙겨 저택으로 돌아간다.');
+  if (run.outcome === 'retreat') lines.push('살아남은 자들이 짐을 챙겨 거점으로 돌아간다.');
   lines.push(`가져갈 금화: ${Math.round(run.gold * keep)} / ${run.gold}`);
-  if (run.outcome !== 'wipe' && run.essence) lines.push(`피의 정수: ${run.essence}`);
+  if (run.outcome !== 'wipe' && run.essence) lines.push(`핵 조각: ${run.essence}`);
   if (run.loot.length) lines.push(run.outcome === 'wipe' ? `잃어버린 장비: ${run.loot.length}개` : `가져갈 장비: ${run.loot.map((i) => i.name).join(', ')}`);
   if (run.outcome !== 'wipe' && run.recruits.length) lines.push(`합류할 동료: ${run.recruits.map((r) => fullName(r)).join(', ')}`);
   const dead = run.fallen.filter((f) => !f.vampire);
@@ -222,13 +222,13 @@ function showResult(run: RunState): void {
     h('h2', { class: run.outcome === 'victory' ? 'gold' : run.outcome === 'wipe' ? 'bad' : '' }, title),
     ...lines.map((l) => h('div', { style: { lineHeight: '1.7' } }, l)),
     dead.length ? h('div', { class: 'bad', style: { lineHeight: '1.7' } }, `✝ 묘지로: ${dead.map((f) => f.name).join(', ')}`) : null,
-    dorm.length ? h('div', { class: 'vamp', style: { lineHeight: '1.7' } }, `⚰ 관 속으로: ${dorm.map((f) => f.name).join(', ')}`) : null,
+    dorm.length ? h('div', { class: 'core', style: { lineHeight: '1.7' } }, `◈ 세계핵으로 돌아감: ${dorm.map((f) => f.name).join(', ')}`) : null,
     h('div', { class: 'row end' }, h('button', {
       class: 'btn primary big', onclick: () => {
         const r = store.finishRun();
         app.route();
         if (r.lines.length) toast(r.lines.join(' · '), 'good');
       },
-    }, '저택으로 귀환')),
+    }, '거점으로 귀환')),
   ), { closable: false });
 }

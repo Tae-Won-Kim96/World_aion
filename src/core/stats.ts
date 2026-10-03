@@ -9,9 +9,10 @@ import {
   STAT_KEYS, defaultEffects, emptyStats,
 } from './types';
 
-export const VAMPIRE_EFFECTS: Partial<Effects> = { lifesteal: 0.15, nightVision: true, dmgTakenTag: { holy: 0.5 } };
-export const VAMPIRE_STAT_MUL: Partial<Stats> = { atk: 1.1, mag: 1.1, spd: 1.1 };
-export const VAMPIRE_AFFINITY: Affinity = { nightcourt: 2, radiance: -3 };
+// 결속자: 세계핵의 힘으로 강해지고 재생하지만, 균열(대붕괴의 잔재)에서 온 공격에 약하다
+export const BOUND_EFFECTS: Partial<Effects> = { regen: 0.03, nightVision: true, dmgTakenTag: { rift: 0.3 } };
+export const BOUND_STAT_MUL: Partial<Stats> = { atk: 1.1, mag: 1.1, spd: 1.1 };
+export const BOUND_AFFINITY: Affinity = { radiance: -2 };
 
 export function allTraitIds(ch: Character): string[] {
   return [...ch.traits, ...ch.curses, ...ch.blessings];
@@ -53,7 +54,7 @@ export function computeStats(ch: Character): Stats {
     if (h?.perk.statMul) muls.push(h.perk.statMul);
   }
   for (const it of Object.values(ch.gear ?? {})) if (it) mods.push(itemStatMod(it));
-  if (ch.vampire) muls.push(VAMPIRE_STAT_MUL);
+  if (ch.vampire) muls.push(BOUND_STAT_MUL);
   for (const m of mods) for (const k of STAT_KEYS) s[k] += m[k] ?? 0;
   for (const m of muls) for (const k of STAT_KEYS) s[k] *= m[k] ?? 1;
 
@@ -96,7 +97,7 @@ export function computeEffects(ch: Character): Effects {
   for (const id of allTraitIds(ch)) mergeEffects(eff, TRAITS[id]?.effects);
   if (ch.house) mergeEffects(eff, HOUSES[ch.house]?.perk.effects);
   for (const it of Object.values(ch.gear ?? {})) if (it) for (const e of itemEffects(it)) mergeEffects(eff, e);
-  if (ch.vampire) mergeEffects(eff, VAMPIRE_EFFECTS);
+  if (ch.vampire) mergeEffects(eff, BOUND_EFFECTS);
   if (ch.cheatDeathUsed) eff.cheatDeath = Math.max(0, eff.cheatDeath - 1);
   return eff;
 }
@@ -111,7 +112,7 @@ export function characterAffinity(ch: Character): Record<FactionId, number> {
   add(CLASSES[ch.cls].affinity);
   for (const id of allTraitIds(ch)) add(TRAITS[id]?.affinity);
   if (ch.house) add(HOUSES[ch.house]?.affinity);
-  if (ch.vampire) add(VAMPIRE_AFFINITY);
+  if (ch.vampire) add(BOUND_AFFINITY);
   return out;
 }
 

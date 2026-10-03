@@ -90,8 +90,9 @@ export const SKILLS: Record<string, SkillDef> = Object.fromEntries(
     S({ id: 'flame_jet', name: '화염 분사', desc: '장치에서 불길을 뿜는다.', kind: 'mag', target: 'tile', range: [1, 2], area: 1, power: 1.0, cooldown: 3, status: [{ id: 'burn', turns: 2, chance: 0.6 }], fx: 'fire' }),
     S({ id: 'gear_shield', name: '방어 장치', desc: '아군에게 기계식 방패를 씌운다.', kind: 'buff', target: 'ally', range: [0, 3], area: 0, power: 0, cooldown: 3, status: [{ id: 'shield', turns: 3, value: 2.0 }], fx: 'gear' }),
 
-    // ---- 혈주 ----
-    S({ id: 'lord_fang', name: '혈주의 송곳니', desc: '송곳니로 피를 빨아 상처를 메운다.', kind: 'phys', target: 'enemy', range: [1, 1], area: 0, power: 1.3, cooldown: 2, lifesteal: 0.6, fx: 'blood' }),
+    // ---- 지휘관 ----
+    S({ id: 'core_strike', name: '핵의 일격', desc: '세계핵의 빛을 실어 베고, 그 힘으로 상처를 메운다.', kind: 'phys', target: 'enemy', range: [1, 1], area: 0, power: 1.3, cooldown: 2, lifesteal: 0.4, fx: 'holy' }),
+    S({ id: 'rally', name: '지휘', desc: '주변 아군을 고무해 축복과 가속을 건다.', kind: 'buff', target: 'self', range: [0, 0], area: 2, power: 0, cooldown: 4, status: [{ id: 'bless', turns: 2 }, { id: 'haste', turns: 1 }], fx: 'shout' }),
 
     // ---- 적 전용 ----
     S({ id: 'unholy_requiem', name: '망자의 진혼곡', desc: '한 턴 동안 영창한 뒤, 표시된 범위를 죽음의 노래로 휩쓴다.', kind: 'mag', target: 'tile', range: [1, 6], area: 2, power: 1.9, cooldown: 4, charge: 1, status: [{ id: 'weak', turns: 2 }], fx: 'dark' }),

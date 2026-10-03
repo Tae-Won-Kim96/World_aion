@@ -192,7 +192,7 @@ export function makeShop(rng: Rng, discount: number, ilvl = 1): ShopItem[] {
     { id: 'torch', name: '횃불 기름', desc: '횃불 +30', price: p(30) },
     { id: 'bandage', name: '붕대 꾸러미', desc: '파티 전원 체력 35% 회복', price: p(50) },
     { id: 'holywater', name: '성수', desc: '저주 하나를 정화한다', price: p(80) },
-    { id: 'essence', name: '피의 정수', desc: '피의 정수 +1', price: p(120) },
+    { id: 'essence', name: '핵 조각', desc: '핵 조각 +1', price: p(120) },
   ];
   return [...rng.sample(items, 3), { id: 'gear', name: gear.name, desc: '장비', price: p(itemValue(gear) * 3), item: gear }];
 }

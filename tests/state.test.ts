@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { newGame, Store } from '../src/core/state';
-import { DORMANT_RUNS } from '../src/core/vampire';
+import { DORMANT_RUNS } from '../src/core/bond';
 
 const fresh = () => new Store(newGame(12345));
 

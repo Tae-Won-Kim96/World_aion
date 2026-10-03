@@ -13,7 +13,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       cond: { races: ['human'], minStar: 3, classes: ['knight', 'paladin', 'lancer', 'warrior'], anyTraits: ['oath', 'noble', 'brave', 'devout', 'veteran', 'tough', 'strong_will', 'iron_skin'] },
       chance: 1,
       perk: { name: '방패의 맹세', desc: '인접 아군이 받는 피해 -15%, 방어 +2', statMod: { def: 2 }, effects: { guardAura: 0.15 } },
-      affinity: { kingdom: 2, radiance: 1 }, colors: ['#2f4fa8', '#e8d07a'], forbidVampire: true,
+      affinity: { kingdom: 2, radiance: 1 }, colors: ['#2f4fa8', '#e8d07a'], forbidBound: true,
     },
     {
       id: 'medini', name: '메디니 가문', short: '메디니', surname: '메디니', rarity: 'named', emblem: '⚜',
@@ -53,7 +53,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       cond: { races: ['human', 'angel', 'halfling', 'dwarf', 'elf'], minStar: 3, classes: ['priest', 'monk', 'exorcist', 'paladin'], anyTraits: ['devout', 'zealot', 'oath'] },
       chance: 1,
       perk: { name: '성녀의 손길', desc: '주는 치유 +30%, 저항 +3', statMod: { res: 3 }, effects: { healMul: 1.3 } },
-      affinity: { radiance: 3 }, colors: ['#f2f2f2', '#d4a017'], forbidVampire: true,
+      affinity: { radiance: 3 }, colors: ['#f2f2f2', '#d4a017'], forbidBound: true,
     },
     {
       id: 'bloodfang', name: '피송곳니 부족', short: '피송곳니', surname: '피송곳니', rarity: 'named', emblem: '⚔',
@@ -85,7 +85,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       cond: { races: ['angel', 'divine'], minStar: 5 },
       chance: 1,
       perk: { name: '천상의 수호', desc: '인접 아군 피해 -10%, 1회 죽음을 버팀, 저항 +4', statMod: { res: 4 }, effects: { guardAura: 0.1, cheatDeath: 1 } },
-      affinity: { radiance: 3 }, colors: ['#ffffff', '#ffd84a'], forbidVampire: true,
+      affinity: { radiance: 3 }, colors: ['#ffffff', '#ffd84a'], forbidBound: true,
     },
     {
       id: 'verdant', name: '녹음의 서약', short: '녹음', rarity: 'named', emblem: '❦',
@@ -104,12 +104,12 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { ironhold: 2, guild: 1 }, colors: ['#7a5a2a', '#4fd1c5'],
     },
     {
-      id: 'crimson', name: '진홍의 혈맹', short: '진홍', rarity: 'legendary', emblem: '❧',
-      desc: '혈주의 송곳니를 받은 자 중, 피가 맞는 자만 초대받는 밤의 귀족 결사.',
+      id: 'core_covenant', name: '핵의 맹약단', short: '맹약단', rarity: 'legendary', emblem: '◈',
+      desc: '세계핵에 결속된 자들 중, 핵과 깊이 공명하는 자만 받아들이는 결사.',
       cond: { minStar: 3, vampire: true },
       chance: 1,
-      perk: { name: '밤의 귀족', desc: '흡혈 10%, 속도 +10%, 밤눈', statMul: { spd: 1.1 }, effects: { lifesteal: 0.1, nightVision: true } },
-      affinity: { nightcourt: 3 }, colors: ['#5c0020', '#16161c'],
+      perk: { name: '핵 공명', desc: '흡혈 10%, 속도 +10%, 균열 피해 내성', statMul: { spd: 1.1 }, effects: { lifesteal: 0.1, dmgTakenTag: { rift: -0.3 } } },
+      affinity: { kingdom: 1 }, colors: ['#123a4a', '#7fe3ff'],
     },
   ] as HouseDef[]).map((h) => [h.id, h]),
 );

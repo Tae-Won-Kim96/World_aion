@@ -61,7 +61,7 @@ export class BattleHud {
       spriteEl(look, 2.5),
       h('div', { class: 'col', style: { gap: '3px', flex: '1' } },
         h('b', { class: ally ? '' : 'bad' }, active.name),
-        h('span', { class: 'small dim' }, `${ROLE_NAMES[active.role]} · Lv.${active.level}${active.vampire ? ' · 🦇' : ''}`),
+        h('span', { class: 'small dim' }, `${ROLE_NAMES[active.role]} · Lv.${active.level}${active.vampire ? ' · ◈결속' : ''}`),
         hpBar(active.hp, active.maxHp),
         h('span', { class: 'small' }, `${active.hp} / ${active.maxHp}`),
         this.statusIcons(active),
@@ -161,7 +161,7 @@ export class BattleHud {
   showResult(victory: boolean, sum: RewardSummary): void {
     modal(h('div', { class: 'col', style: { width: '500px' } },
       h('h2', { class: victory ? 'gold' : 'bad' }, victory ? '승리' : '패배'),
-      victory ? h('div', null, `금화 +${sum.gold}${sum.essence ? ` · 피의 정수 +${sum.essence}` : ''}`) : h('div', { class: 'dim' }, '원정대가 무너졌다…'),
+      victory ? h('div', null, `금화 +${sum.gold}${sum.essence ? ` · 핵 조각 +${sum.essence}` : ''}`) : h('div', { class: 'dim' }, '원정대가 무너졌다…'),
       ...(sum.items ?? []).map((it) => itemRow(it)),
       ...(sum.relics ?? []).map((r) => h('div', { class: 'row small' }, relicIcon(r, 24), h('span', { class: 'gold' }, `유물 「${RELICS[r].name}」 — ${RELICS[r].desc}`))),
       ...sum.exp.map((e) => h('div', { class: 'small' }, `${e.name}: ${e.gained ? `경험치 +${e.gained}` : '성장하지 않음'}${e.levels ? ` · 레벨 업! (+${e.levels})` : ''}`)),
@@ -173,6 +173,6 @@ export class BattleHud {
 
 const TAG_NAMES: Record<string, string> = {
   undead: '언데드', unholy: '불경', holy: '신성', infernal: '지옥', abyssal: '심연', beast: '야수', cult: '광신',
-  bandit: '도적', boss: '보스', vampire: '뱀파이어', nature: '자연', fey: '요정', shadow: '그림자', stone: '바위',
+  bandit: '도적', boss: '보스', vampire: '뱀파이어', bound: '결속', rift: '균열', core: '세계핵', nature: '자연', fey: '요정', shadow: '그림자', stone: '바위',
   small: '소형', brute: '거한', large: '대형', civil: '문명', divine: '신족', winged: '날개',
 };

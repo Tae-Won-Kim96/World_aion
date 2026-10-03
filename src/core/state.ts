@@ -17,7 +17,7 @@ import { generateItem, type ItemGenOpts, itemValue } from './gen/item';
 import { freshSeed, mixSeed, Rng } from './rng';
 import { computeEffects, computeStats, expToNext, fullName, levelCap } from './stats';
 import type { Character, FactionId, GearSlot, Grave, Item, Star } from './types';
-import { applyTurn, canTurn, DORMANT_RUNS, lordExpFromTurn, lordExpToNext, turnCost, vampireSlots } from './vampire';
+import { applyBind, canBind, DORMANT_RUNS, lordExpFromBind, lordExpToNext, bindCost, bindSlots } from './bond';
 
 export const SAVE_KEY = 'world_aion_save_v1';
 export const PARTY_SIZE = 4;
@@ -83,18 +83,19 @@ function starter(seedBase: number): Character[] {
   });
 }
 
-/** 혈주(플레이어) 유닛 */
+/** 지휘관(플레이어) 유닛 */
 export function makeLord(seed: number): Character {
   const rng = new Rng(mixSeed(seed, 'lord'));
   return {
-    id: LORD_ID, seed: rng.seed32(), given: '혈주', surname: '', gender: rng.pick(['m', 'f'] as const),
-    race: 'dhampir', cls: 'bloodlord', star: 3, level: 1, exp: 0,
-    traits: [], curses: [], blessings: [], skills: ['lord_fang'], roll: {},
+    id: LORD_ID, seed: rng.seed32(), given: '지휘관', surname: '', gender: rng.pick(['m', 'f'] as const),
+    race: 'corebearer', cls: 'commander', star: 3, level: 1, exp: 0,
+    traits: [], curses: [], blessings: [], skills: [...LORD_INNATE], roll: {},
     vampire: false, dormant: 0, kills: 0, runs: 0, createdAt: Date.now(), isLord: true,
   };
 }
 
 export const LORD_START_SKILLS = ['quick_slash', 'shadow_bolt'];
+export const LORD_INNATE = ['core_strike', 'rally'];
 
 export function newGame(seed = freshSeed()): SaveData {
   const rep = Object.fromEntries(FACTION_IDS.map((f) => [f, 0])) as Record<FactionId, number>;
@@ -114,7 +115,7 @@ export function newGame(seed = freshSeed()): SaveData {
     runNo: 0,
     cleared: [],
     run: null,
-    news: [{ t: Date.now(), text: '혈주가 오랜 잠에서 깨어났다. 폐허가 된 저택에 네 명의 떠돌이가 찾아왔다.' }],
+    news: [{ t: Date.now(), text: '대붕괴로부터 백 년. 지휘관이 무너진 성채에서 세계핵의 조각을 품고 눈을 떴다. 네 명의 생존자가 불빛을 보고 찾아왔다.' }],
     stats: { deaths: 0, turned: 0, victories: 0, runs: 0, recruited: 0 },
     stash: [],
   };
@@ -126,6 +127,11 @@ export function migrate(d: SaveData): SaveData {
   d.lord.learned ??= [...LORD_START_SKILLS];
   d.lord.equipped ??= [...LORD_START_SKILLS];
   d.lordChar ??= makeLord(d.createdAt ?? 1);
+  // v0.2 → v0.3: 혈주 → 지휘관, 진홍의 혈맹 → 핵의 맹약단
+  if ((d.lordChar.race as string) === 'dhampir') d.lordChar.race = 'corebearer';
+  if (d.lordChar.cls === 'bloodlord') d.lordChar.cls = 'commander';
+  if (d.lordChar.given === '혈주') d.lordChar.given = '지휘관';
+  for (const c of [...d.roster, ...d.graveyard.map((g) => g.char)]) if (c.house === 'crimson') c.house = 'core_covenant';
   if (d.run) {
     d.run.loot ??= [];
     d.run.relics ??= [];
@@ -183,18 +189,18 @@ export class Store {
     return this.s.roster.find((c) => c.id === id);
   }
 
-  /** 혈주 유닛 (레벨·장착 기술을 동기화해서 반환) */
+  /** 지휘관 유닛 (레벨·장착 기술을 동기화해서 반환) */
   lord(): Character {
     const c = this.s.lordChar;
     c.level = this.s.lord.level;
-    c.skills = ['lord_fang', ...this.s.lord.equipped.filter((id) => this.s.lord.learned.includes(id) && SKILLS[id])].slice(0, LORD_SLOTS + 1);
+    c.skills = [...LORD_INNATE, ...this.s.lord.equipped.filter((id) => this.s.lord.learned.includes(id) && SKILLS[id])].slice(0, LORD_SLOTS + LORD_INNATE.length);
     return c;
   }
 
-  /** 혈주가 기술을 배운다. 새로 배웠으면 true */
+  /** 지휘관이 기술을 핵에 기록한다. 새로 배웠으면 true */
   lordLearn(skillId: string): boolean {
     const L = this.s.lord;
-    if (!SKILLS[skillId] || L.learned.includes(skillId) || skillId === 'lord_fang') return false;
+    if (!SKILLS[skillId] || L.learned.includes(skillId) || LORD_INNATE.includes(skillId)) return false;
     L.learned.push(skillId);
     if (L.equipped.length < LORD_SLOTS) L.equipped.push(skillId);
     return true;
@@ -217,12 +223,12 @@ export class Store {
     while (this.s.lord.exp >= lordExpToNext(this.s.lord.level)) {
       this.s.lord.exp -= lordExpToNext(this.s.lord.level);
       this.s.lord.level++;
-      msgs.push(`혈주 레벨 ${this.s.lord.level}! 뱀파이어 한도 ${vampireSlots(this.s.lord.level)}명.`);
+      msgs.push(`지휘관 레벨 ${this.s.lord.level}! 결속 한도 ${bindSlots(this.s.lord.level)}명.`);
     }
     return msgs;
   }
 
-  vampireCount(): number {
+  boundCount(): number {
     return this.s.roster.filter((c) => c.vampire).length;
   }
 
@@ -235,13 +241,13 @@ export class Store {
     const cost = n === 10 ? PULL10_COST : PULL_COST;
     if (this.s.run) return { ok: false, reason: '원정 중에는 모집할 수 없다.' };
     if (this.s.gold < cost) return { ok: false, reason: `금화가 부족하다 (${cost} 필요).` };
-    if (this.s.roster.length + n > ROSTER_CAP) return { ok: false, reason: `저택이 꽉 찼다 (최대 ${ROSTER_CAP}명).` };
+    if (this.s.roster.length + n > ROSTER_CAP) return { ok: false, reason: `거점이 꽉 찼다 (최대 ${ROSTER_CAP}명).` };
     this.s.gold -= cost;
     const chars = pull(n, this.s.pity);
     this.s.roster.push(...chars);
     this.s.stats.recruited += n;
     const best = chars.reduce((a, b) => (b.star > a.star ? b : a));
-    if (best.star >= 4) this.news(`★${best.star} ${fullName(best)}이(가) 저택의 문을 두드렸다.`);
+    if (best.star >= 4) this.news(`★${best.star} ${fullName(best)}이(가) 거점의 불빛을 보고 찾아왔다.`);
     this.save();
     return { ok: true, chars };
   }
@@ -250,39 +256,39 @@ export class Store {
     if (this.s.run?.party.includes(id)) return { ok: false, reason: '원정 중인 동료다.' };
     const ch = this.char(id);
     if (!ch) return { ok: false, reason: '없는 동료다.' };
-    if (ch.isLord) return { ok: false, reason: '혈주는 저택을 떠날 수 없다.' };
+    if (ch.isLord) return { ok: false, reason: '지휘관은 거점을 떠날 수 없다.' };
     const gold = 10 * ch.star;
     this.s.roster = this.s.roster.filter((c) => c.id !== id);
     this.s.gold += gold;
-    this.news(`${fullName(ch)}이(가) 저택을 떠났다.`);
+    this.news(`${fullName(ch)}이(가) 거점을 떠났다.`);
     this.save();
     return { ok: true, gold };
   }
 
-  // ------------------------------------------------------------ 흡혈
-  turnCheck(id: string): { ok: boolean; reason?: string; cost: number } {
+  // ------------------------------------------------------------ 결속
+  bindCheck(id: string): { ok: boolean; reason?: string; cost: number } {
     const ch = this.char(id);
     if (!ch) return { ok: false, reason: '없는 동료다.', cost: 0 };
     if (this.s.run?.party.includes(id)) return { ok: false, reason: '원정 중인 동료다.', cost: 0 };
-    const r = canTurn(ch, { essence: this.s.essence, vampires: this.vampireCount(), lordLevel: this.s.lord.level });
-    return { ...r, cost: turnCost(ch) };
+    const r = canBind(ch, { essence: this.s.essence, vampires: this.boundCount(), lordLevel: this.s.lord.level });
+    return { ...r, cost: bindCost(ch) };
   }
 
-  turn(id: string): { ok: boolean; msgs: string[] } {
-    const chk = this.turnCheck(id);
+  bindCompanion(id: string): { ok: boolean; msgs: string[] } {
+    const chk = this.bindCheck(id);
     const ch = this.char(id);
     if (!chk.ok || !ch) return { ok: false, msgs: [chk.reason ?? '불가'] };
     this.s.essence -= chk.cost;
-    const msgs = applyTurn(ch);
-    const exp = lordExpFromTurn(ch);
-    msgs.push(`혈주가 피를 마시고 경험치 ${exp}를 얻었다.`);
+    const msgs = applyBind(ch);
+    const exp = lordExpFromBind(ch);
+    msgs.push(`지휘관이 결속을 통해 경험치 ${exp}를 얻었다.`);
     msgs.push(...this.lordGainExp(exp));
     const learned = ch.skills.filter((id) => this.lordLearn(id));
-    if (learned.length) msgs.push(`피와 함께 기술을 흡수했다: ${learned.map((id) => SKILLS[id].name).join(', ')}`);
+    if (learned.length) msgs.push(`그의 기억이 핵에 기록되었다. 새 기술: ${learned.map((id) => SKILLS[id].name).join(', ')}`);
     this.addRep('nightcourt', 3);
     this.addRep('radiance', -3);
     this.s.stats.turned++;
-    this.news(`${fullName(ch)}이(가) 뱀파이어가 되었다.`);
+    this.news(`${fullName(ch)}이(가) 세계핵에 결속되었다.`);
     this.save();
     return { ok: true, msgs };
   }
@@ -316,7 +322,7 @@ export class Store {
   }
 
   canJoinParty(ch: Character): { ok: boolean; reason?: string } {
-    if (ch.dormant > 0) return { ok: false, reason: `관 속에서 휴면 중 (${ch.dormant}회 남음)` };
+    if (ch.dormant > 0) return { ok: false, reason: `세계핵에서 휴면 중 (${ch.dormant}회 남음)` };
     return { ok: true };
   }
 
@@ -408,7 +414,7 @@ export class Store {
         const lines = [`금화 ${gold}을(를) 발견했다.`];
         if (rng.chance(0.55)) this.grantItem({ ilvl: itemLevel(run) }, rng, lines);
         if (rng.chance(0.3)) this.grantRelic(rng, lines);
-        if (rng.chance(0.25)) { run.essence++; lines.push('피의 정수가 담긴 유리병을 찾았다!'); }
+        if (rng.chance(0.25)) { run.essence++; lines.push('잔해 속에서 빛나는 핵 조각을 찾았다!'); }
         else if (rng.chance(0.12) && party.length) {
           const who = rng.pick(party);
           const b = rng.pick(BLESSING_LIST.filter((t) => !who.blessings.includes(t.id)));
@@ -572,7 +578,7 @@ export class Store {
       lines.push(`횃불 ${fx.torch > 0 ? '+' : ''}${fx.torch}`);
     } else if ('essence' in fx) {
       run.essence += fx.essence;
-      lines.push(`피의 정수 +${fx.essence}`);
+      lines.push(`핵 조각 +${fx.essence}`);
     } else if ('heal' in fx) {
       for (const c of who(fx.who)) {
         const max = computeStats(c).hp;
@@ -657,7 +663,7 @@ export class Store {
     for (const f of run.fallen) {
       if (res.deaths.some((d) => d.id === f.id)) continue;
       if (!summary.lines.some((l) => l.startsWith(f.name))) {
-        summary.lines.push(f.vampire ? `${f.name}은(는) 재가 되어 흩어졌다… 관 속에서 다시 깨어날 것이다.` : `${f.name}이(가) 영원히 잠들었다.`);
+        summary.lines.push(f.vampire ? `${f.name}의 몸이 빛 조각으로 흩어졌다… 세계핵에서 다시 형체를 갖출 것이다.` : `${f.name}이(가) 영원히 잠들었다.`);
       }
     }
 
@@ -706,13 +712,13 @@ export class Store {
       const r = this.gainExp(c, exp);
       summary.exp.push({ id: c.id, name: fullName(c), gained: r.gained, levels: r.levels });
     }
-    // 혈주의 기술 흡수 (함께 싸운 동료에게서)
+    // 지휘관의 기술 기록 (함께 싸운 동료에게서)
     if (party.some((c) => c.isLord) && drop.chance(LORD_LEARN_CHANCE)) {
       const pool = party.filter((c) => !c.isLord).flatMap((c) => c.skills).filter((id) => !this.s.lord.learned.includes(id));
       if (pool.length) {
         const id = drop.pick(pool);
         this.lordLearn(id);
-        summary.lines.push(`혈주가 전투 중 「${SKILLS[id].name}」을(를) 흡수했다!`);
+        summary.lines.push(`지휘관이 전투 중 「${SKILLS[id].name}」을(를) 핵에 기록했다!`);
       }
     }
     run.battle = undefined;
@@ -740,11 +746,11 @@ export class Store {
     if (c.isLord) {
       c.dormant = 2;
       run.fallen.push({ id: c.id, vampire: true, name: fullName(c) });
-      line = '혈주가 붉은 안개가 되어 흩어졌다… 저택에서 다시 형체를 갖출 것이다.';
+      line = '지휘관이 쓰러졌다… 세계핵이 그를 거점으로 끌어당긴다. 다음 원정은 쉬어야 한다.';
     } else if (c.vampire) {
       c.dormant = DORMANT_RUNS + 1;
       run.fallen.push({ id: c.id, vampire: true, name: fullName(c) });
-      line = `${fullName(c)}은(는) 재가 되어 흩어졌다… 관 속에서 다시 깨어날 것이다.`;
+      line = `${fullName(c)}의 몸이 빛 조각으로 흩어졌다… 세계핵에서 다시 형체를 갖출 것이다.`;
     } else {
       run.fallen.push({ id: c.id, vampire: false, name: fullName(c) });
       this.bury(c, `${by}에게 쓰러짐`, at);
@@ -803,7 +809,7 @@ export class Store {
     this.s.gold += gold;
     this.s.essence += essence;
     if (gold) lines.push(`금화 +${gold}`);
-    if (essence) lines.push(`피의 정수 +${essence}`);
+    if (essence) lines.push(`핵 조각 +${essence}`);
     if (run.outcome === 'victory') {
       if (!this.s.cleared.includes(run.dungeon)) {
         this.s.cleared.push(run.dungeon);
@@ -830,7 +836,7 @@ export class Store {
     }
     if (run.outcome !== 'wipe') {
       for (const r of run.recruits) {
-        if (this.s.roster.length < ROSTER_CAP) { this.s.roster.push(r); lines.push(`${fullName(r)}이(가) 저택에 합류했다.`); }
+        if (this.s.roster.length < ROSTER_CAP) { this.s.roster.push(r); lines.push(`${fullName(r)}이(가) 거점에 합류했다.`); }
       }
     }
     const fallenNow = new Set(run.fallen.map((f) => f.id));

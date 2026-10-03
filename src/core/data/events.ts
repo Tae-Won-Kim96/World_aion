@@ -91,7 +91,7 @@ export const EVENTS: EventDef[] = [
         label: '말을 건다',
         outcomes: [
           { w: 60, text: '기사는 지름길과 기름을 나눠주었다.', fx: [{ torch: 20 }, { rep: 'radiance', n: 3 }] },
-          { w: 0, text: '기사는 일행의 송곳니와 뿔을 보더니 비명을 지르며 달아났다. 교단에 소문이 퍼질 것이다.', fx: [{ rep: 'radiance', n: -6 }], bonus: [{ cond: UNHOLY, add: 200 }] },
+          { w: 0, text: '기사는 일행의 결속 문양과 뿔을 보더니 비명을 지르며 달아났다. 교단에 소문이 퍼질 것이다.', fx: [{ rep: 'radiance', n: -6 }], bonus: [{ cond: UNHOLY, add: 200 }] },
         ],
       },
       {
@@ -163,12 +163,12 @@ export const EVENTS: EventDef[] = [
     text: '검붉은 제단이 심장처럼 맥동한다. 피를 바치면 무언가를 돌려줄 것 같다.',
     options: [
       {
-        label: '뱀파이어가 마신다', req: { vampire: true }, reqText: '뱀파이어',
-        outcomes: [{ w: 1, text: '{actor}이(가) 제단의 피를 들이켰다. 힘이 차오른다.', fx: [{ heal: 0.6, who: 'actor' }, { essence: 1 }, { rep: 'nightcourt', n: 5 }] }],
+        label: '피를 들이켠다', req: { any: [{ race: ['vampire'] }, { trait: ['bloodthirsty'] }] }, reqText: '뱀파이어 / 피에 굶주림',
+        outcomes: [{ w: 1, text: '{actor}이(가) 제단의 피를 들이켰다. 힘이 차오르고, 제단 밑에서 핵 조각이 굴러 나왔다.', fx: [{ heal: 0.6, who: 'actor' }, { essence: 1 }, { rep: 'nightcourt', n: 5 }] }],
       },
       {
         label: '피를 바친다',
-        outcomes: [{ w: 1, text: '{actor}의 피가 제단에 스며들고, 붉은 정수가 맺혔다.', fx: [{ hurt: 0.25, who: 'random' }, { essence: 1 }] }],
+        outcomes: [{ w: 1, text: '{actor}의 피가 제단에 스며들자, 제단이 삼키고 있던 핵 조각을 토해냈다.', fx: [{ hurt: 0.25, who: 'random' }, { essence: 1 }] }],
       },
       {
         label: '제단을 부순다', req: { any: [{ role: ['healer'] }, { cls: ['exorcist', 'paladin'] }, { trait: ['devout', 'zealot'] }] }, reqText: '치유 직업 / 퇴마사·성기사 / 독실함',
@@ -298,11 +298,11 @@ export const EVENTS: EventDef[] = [
   },
   {
     id: 'envoy', title: '밤의 궁정 사절', weight: 5,
-    text: '검은 망토의 사절이 정중히 고개를 숙인다. "혈주님의 귀환 소식은 궁정에도 닿았습니다."',
+    text: '검은 망토의 사절이 정중히 고개를 숙인다. "무너진 성채에 불이 켜졌다는 소식은 궁정에도 닿았습니다, 지휘관."',
     options: [
       {
-        label: '환대를 받는다', req: { vampire: true }, reqText: '파티에 뱀파이어',
-        outcomes: [{ w: 1, text: '사절은 {actor}에게 피의 정수가 든 잔을 바쳤다.', fx: [{ essence: 1 }, { rep: 'nightcourt', n: 8 }] }],
+        label: '환대를 받는다', req: { any: [{ race: ['vampire'] }, { vampire: true }] }, reqText: '뱀파이어 또는 결속자',
+        outcomes: [{ w: 1, text: '사절은 {actor}에게 핵 조각이 든 상자를 바쳤다. "궁정은 강한 자를 좋아하지요."', fx: [{ essence: 1 }, { rep: 'nightcourt', n: 8 }] }],
       },
       {
         label: '정보를 산다 (금화 40)', req: { gold: 40 }, reqText: '금화 40',

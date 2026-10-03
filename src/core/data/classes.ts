@@ -200,7 +200,7 @@ export const CLASSES: Record<string, ClassDef> = Object.fromEntries(
       affinity: { radiance: 2, infernal: -1 }, notRaces: ['demon', 'imp'],
     },
     {
-      id: 'vhunter', name: '흡혈귀 사냥꾼', role: 'ranged', weight: 4, desc: '밤의 존재를 사냥하는 자. 흡혈을 거부한다.',
+      id: 'vhunter', name: '흡혈귀 사냥꾼', role: 'ranged', weight: 4, desc: '밤의 존재를 사냥하는 자. 죽지 않는 몸이 되기를 거부한다(결속 불가).',
       base: st(48, 12, 4, 4, 6, 12, 4, 9), growth: { hp: 5, atk: 1.4, def: 0.5, res: 0.6, spd: 0.5 },
       attack: { name: '석궁', kind: 'phys', range: [2, 4], fx: 'arrow', projectile: true },
       skills: ['silver_bolt', 'stake', 'mark_target'],
@@ -248,12 +248,12 @@ export const CLASSES: Record<string, ClassDef> = Object.fromEntries(
       affinity: { nightcourt: 2, radiance: -2 }, notRaces: ['angel', 'divine'],
     },
     {
-      id: 'bloodlord', name: '혈주', role: 'melee', weight: 0, desc: '피로 기술을 흡수하는 저택의 주인. 배운 기술 중 셋을 골라 쓴다.',
+      id: 'commander', name: '지휘관', role: 'melee', weight: 0, desc: '무너진 세계를 다시 세우려는 지휘관. 핵에 기록한 기술 중 셋을 골라 쓴다.',
       base: st(60, 12, 12, 6, 6, 12, 4, 8), growth: { hp: 6, atk: 1.3, mag: 1.3, def: 0.7, res: 0.7, spd: 0.5 },
-      attack: { name: '혈검', kind: 'phys', range: [1, 1], fx: 'blood' },
-      skills: ['lord_fang'],
-      gear: { weapon: ['sword'], offhand: ['none'], head: ['circlet'], outfit: ['coat'], palette: [['#2a1020', '#c9a227']] },
-      affinity: { nightcourt: 1 }, races: ['dhampir'],
+      attack: { name: '지휘검', kind: 'phys', range: [1, 1], fx: 'slash' },
+      skills: ['core_strike', 'rally'],
+      gear: { weapon: ['sword'], offhand: ['none'], head: ['none'], outfit: ['coat'], palette: [['#1f3a5a', '#e2b84a']] },
+      affinity: {}, races: ['corebearer'],
     },
   ] as ClassDef[]).map((c) => [c.id, c]),
 );

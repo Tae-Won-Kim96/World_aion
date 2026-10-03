@@ -14,7 +14,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '신의 피를 이은 고대 종족. 극히 드물며, 존재만으로 주변을 비춘다.',
     statMod: { hp: 10, atk: 2, mag: 4, res: 4 },
     affinity: { radiance: 2, kingdom: 1, infernal: -2 },
-    canTurn: false, turnNote: '신의 피는 흡혈을 거부한다.',
+    canBind: false, bindNote: '신의 피는 세계핵보다 오래되었다. 결속을 거부한다.',
     tags: ['holy', 'divine'],
     look: {
       skin: [['#f7dfa6', '#d9b672', '#fff2cc'], ['#e9e4ff', '#c0b8e6', '#ffffff'], ['#cfe9ff', '#9ec3e6', '#ffffff']],
@@ -29,7 +29,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '천상에서 추방되었거나 파견된 날개 달린 존재.',
     statMod: { hp: 4, mag: 3, res: 4, spd: 1 },
     affinity: { radiance: 3, infernal: -3, nightcourt: -2 },
-    canTurn: false, turnNote: '천상의 피는 송곳니를 태워버린다.',
+    canBind: false, bindNote: '천상의 존재는 지상의 핵에 묶이지 않는다.',
     tags: ['holy', 'winged'],
     look: {
       skin: [['#fff1e6', '#e8cbb8', '#ffffff'], ['#f7e3d3', '#dcbca6', '#fff7f0'], ['#c99470', '#a2704f', '#e0b18f']],
@@ -44,7 +44,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '지옥에서 기어 나온 존재. 계약과 대가를 중시한다.',
     statMod: { hp: 6, atk: 3, mag: 3, res: -1 },
     affinity: { infernal: 3, radiance: -3, guild: 1 },
-    canTurn: true, turnNote: '저주받은 피끼리는 잘 섞인다.',
+    canBind: true, bindNote: '저주받은 피끼리는 잘 섞인다.',
     tags: ['infernal', 'unholy'],
     look: {
       skin: [['#b8333d', '#86212b', '#d65863'], ['#5b3f8c', '#3f2a66', '#7b5bb0'], ['#4b5568', '#333b4b', '#6a7587'], ['#2e2a3a', '#1d1a26', '#4a4560']],
@@ -59,7 +59,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '숲에서 수백 년을 사는 장명 종족. 활과 마법에 능하다.',
     statMod: { hp: -3, mag: 2, spd: 2, crit: 3 },
     affinity: { silverwood: 3, horde: -2 },
-    canTurn: true,
+    canBind: true,
     tags: ['nature', 'fey'],
     look: {
       skin: [['#fbe3d0', '#e2b59b', '#fff3ea'], ['#f3d6bd', '#d6aa8c', '#fde9d8'], ['#e2b48c', '#c08f6a', '#f2cfae']],
@@ -73,7 +73,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '지하 도시에서 온 엘프의 일족. 독과 그림자의 장인.',
     statMod: { hp: -2, atk: 1, spd: 2, crit: 5 },
     affinity: { silverwood: -1, nightcourt: 1, guild: 1 },
-    canTurn: true,
+    canBind: true,
     tags: ['fey', 'shadow'],
     look: {
       skin: [['#7d6d92', '#5b4d70', '#9a8ab0'], ['#5d6178', '#41455a', '#7a7f98'], ['#8a6f8f', '#664f6b', '#a88cad']],
@@ -88,7 +88,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '산맥 깊은 곳의 장인 종족. 단단하고 고집이 세다.',
     statMod: { hp: 8, def: 3, spd: -2 },
     affinity: { ironhold: 3, silverwood: -1 },
-    canTurn: true,
+    canBind: true,
     tags: ['stone'],
     look: {
       skin: [['#efb995', '#cf8a6a', '#f9d2b6'], ['#d99a74', '#b47252', '#ebb895'], ['#a8704d', '#835237', '#c08a64']],
@@ -102,7 +102,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '작고 영리한 발명가 종족. 호기심이 목숨보다 크다.',
     statMod: { hp: -5, def: -1, mag: 3, spd: 1, crit: 3 },
     affinity: { ironhold: 2, guild: 1 },
-    canTurn: true,
+    canBind: true,
     tags: ['small', 'fey'],
     look: {
       skin: [['#f5c9a8', '#dc9d7c', '#ffe1cb'], ['#e8d0b0', '#c9a883', '#f6e4cc']],
@@ -116,7 +116,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '언덕 마을의 작은 사람들. 운이 좋고 손이 빠르다.',
     statMod: { hp: -5, atk: -1, spd: 3, crit: 6 },
     affinity: { kingdom: 1, guild: 1, wildlands: 1 },
-    canTurn: true,
+    canBind: true,
     tags: ['small'],
     look: {
       skin: HUMAN_SKIN.slice(0, 3),
@@ -130,7 +130,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '지옥의 하급 존재. 장난스럽고 교활하다.',
     statMod: { hp: -6, def: -1, mag: 2, spd: 3 },
     affinity: { infernal: 2, radiance: -2 },
-    canTurn: true,
+    canBind: true,
     tags: ['infernal', 'small', 'unholy'],
     look: {
       skin: [['#d9483b', '#a8302a', '#f0705f'], ['#e0643a', '#b04726', '#f28a5e'], ['#9b3fb5', '#722c87', '#bd65d6']],
@@ -145,7 +145,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '가장 흔하고, 가장 예측할 수 없는 종족.',
     statMod: { hp: 2 },
     affinity: { kingdom: 2 },
-    canTurn: true,
+    canBind: true,
     tags: ['civil'],
     look: { skin: HUMAN_SKIN, ears: 'human', beardChance: 0.15, freckles: 0.15 },
   },
@@ -154,7 +154,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '황야의 전사 종족. 명예와 힘을 숭상한다.',
     statMod: { hp: 8, atk: 4, mag: -2, res: -1 },
     affinity: { horde: 3, kingdom: -1, silverwood: -1 },
-    canTurn: true,
+    canBind: true,
     tags: ['brute'],
     look: {
       skin: [['#7fa650', '#5c7d38', '#a0c46e'], ['#6b8f4e', '#4c6a36', '#8bb06a'], ['#8a9a6b', '#677550', '#a9b98a'], ['#8a7a4a', '#665a33', '#a89866']],
@@ -168,7 +168,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '거대하고 질긴 종족. 상처가 눈앞에서 아문다.',
     statMod: { hp: 14, atk: 3, spd: -2, mag: -2 },
     affinity: { horde: 2, wildlands: 1 },
-    canTurn: true,
+    canBind: true,
     tags: ['brute', 'large'],
     effects: { regen: 0.04 },
     look: {
@@ -183,7 +183,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '심해에서 올라온 비늘 종족. 옛 신의 노래를 기억한다.',
     statMod: { hp: 6, res: 3, spd: -1 },
     affinity: { abyss: 3, radiance: -2 },
-    canTurn: true, turnNote: '차가운 피는 느리게 변한다.',
+    canBind: true, bindNote: '차가운 피는 느리게 변한다.',
     tags: ['abyssal'],
     look: {
       skin: [['#4a8f8a', '#2f6662', '#6cb3ad'], ['#3e6e91', '#2a4e6b', '#5f91b5'], ['#5c8a6e', '#3f6650', '#7fae91']],
@@ -198,7 +198,7 @@ export const RACES: Record<RaceId, RaceDef> = {
     desc: '짐승의 귀와 꼬리를 가진 종족. 감각이 예민하다.',
     statMod: { mag: -2, atk: 2, spd: 2, crit: 3 },
     affinity: { wildlands: 3, kingdom: -1 },
-    canTurn: true,
+    canBind: true,
     tags: ['beast'],
     look: {
       skin: HUMAN_SKIN,
@@ -207,41 +207,57 @@ export const RACES: Record<RaceId, RaceDef> = {
     },
     classBias: { hunter: 4, monk: 3, berserker: 2, rogue: 2, druid: 2 },
   },
-  // ---- 혈주 전용 ----
-  dhampir: {
-    id: 'dhampir', name: '반흡혈귀', weight: 0, minStar: 1,
-    desc: '인간과 흡혈귀 사이에서 태어난 자. 늙지 않고, 피로 배운다.',
-    statMod: { hp: 4, spd: 1 },
-    affinity: { nightcourt: 3, radiance: -2 },
-    canTurn: false, turnNote: '이미 절반은 흡혈귀다.',
-    tags: ['shadow'],
-    effects: { lifesteal: 0.1, nightVision: true },
+  vampire: {
+    id: 'vampire', name: '뱀파이어', weight: 4, minStar: 2,
+    desc: '대붕괴의 밤 이후 번성한 불사의 귀족. 피를 마시고, 햇빛을 싫어한다.',
+    statMod: { atk: 2, mag: 2, spd: 2, res: -1 },
+    affinity: { nightcourt: 3, radiance: -3 },
+    canBind: true, bindNote: '죽지 않는 몸에 세계핵이 한 겹 더 감긴다.',
+    tags: ['unholy', 'vampire'],
+    effects: { lifesteal: 0.12, nightVision: true, dmgTakenTag: { holy: 0.3 } },
     look: {
-      skin: [['#f0e4ea', '#cdb8c4', '#fff6fa'], ['#e6dce8', '#c0b0c8', '#f8f2fa']],
-      hairColors: ['#e8e8f0', '#1a1018', '#8a1a2a', '#c9c0e8'],
-      eyeColors: ['#ff3a5a'],
-      ears: 'pointy',
+      skin: [['#f0e4ea', '#cdb8c4', '#fff6fa'], ['#e6dce8', '#c0b0c8', '#f8f2fa'], ['#d8d0e0', '#b0a6bc', '#f0ecf4']],
+      hairColors: ['#1a1018', '#e8e8f0', '#8a1a2a', '#3a1a4a', '#c9c0e8'],
+      eyeColors: ['#ff3a5a', '#d01838'],
+      ears: 'pointy', fangs: true,
+    },
+    classBias: { bloodmage: 4, swordsman: 2, warlock: 2, assassin: 2 },
+  },
+  // ---- 지휘관 전용 ----
+  corebearer: {
+    id: 'corebearer', name: '핵지기', weight: 0, minStar: 1,
+    desc: '대붕괴에서 살아남아 세계핵의 조각을 품은 자. 늙지 않고, 동료의 기억으로 배운다.',
+    statMod: { hp: 4, spd: 1 },
+    affinity: {},
+    canBind: false, bindNote: '이미 세계핵을 품고 있다.',
+    tags: ['core'],
+    effects: { regen: 0.03, nightVision: true },
+    look: {
+      skin: [['#f6d0b1', '#d9a07f', '#ffe6d1'], ['#e8b48a', '#c48662', '#f7cfaa'], ['#c68a5c', '#9c623d', '#dca57a']],
+      hairColors: ['#e8e8f0', '#2b2028', '#5a3825', '#c9c0e8'],
+      eyeColors: ['#7fe3ff'],
+      ears: 'human', glowEyes: '#7fe3ff',
     },
   },
   // ---- 적 전용 ----
   skeleton: {
     id: 'skeleton', name: '해골', weight: 0, minStar: 1, desc: '안식을 거부당한 뼈.',
-    statMod: {}, affinity: {}, canTurn: false, tags: ['undead', 'unholy'],
+    statMod: {}, affinity: {}, canBind: false, tags: ['undead', 'unholy'],
     look: { skin: [['#e8e2cf', '#b8af96', '#fbf8ee']], ears: 'none', bald: true, skull: true, glowEyes: '#ff4a4a' },
   },
   ghoul: {
     id: 'ghoul', name: '구울', weight: 0, minStar: 1, desc: '시체를 먹는 굶주린 망자.',
-    statMod: {}, affinity: {}, canTurn: false, tags: ['undead', 'unholy'],
+    statMod: {}, affinity: {}, canBind: false, tags: ['undead', 'unholy'],
     look: { skin: [['#8b9a86', '#66735f', '#a8b5a3'], ['#9c9483', '#77705f', '#bab3a1']], ears: 'pointy', glowEyes: '#e8e84a', hairColors: ['#3a3a3a', '#6a7a8a'] },
   },
   goblin: {
     id: 'goblin', name: '고블린', weight: 0, minStar: 1, desc: '작고 교활한 약탈자.',
-    statMod: {}, affinity: {}, canTurn: false, tags: ['beast'],
+    statMod: {}, affinity: {}, canBind: false, tags: ['beast'],
     look: { skin: [['#9bb53a', '#738a26', '#bcd35c'], ['#b0a63a', '#878026', '#cbc55c']], ears: 'long', bigNose: true, height: 'short', bald: true },
   },
   wraith: {
     id: 'wraith', name: '망령', weight: 0, minStar: 1, desc: '원한만 남은 그림자.',
-    statMod: {}, affinity: {}, canTurn: false, tags: ['undead', 'unholy'],
+    statMod: {}, affinity: {}, canBind: false, tags: ['undead', 'unholy'],
     look: { skin: [['#4b4f7a', '#323556', '#6a6f9e']], ears: 'none', bald: true, glowEyes: '#7fe3ff' },
   },
 };

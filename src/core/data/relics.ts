@@ -11,7 +11,7 @@ export const RELICS: Record<string, RelicDef> = Object.fromEntries(
     { id: 'watchful_eye', name: '경계의 눈', desc: '기습당하지 않는다', color: '#ffd45a' },
     { id: 'golden_scale', name: '황금 저울', desc: '금화 획득 +25%', color: '#f2c45a' },
     { id: 'camp_kit', name: '야영 도구', desc: '야영지 회복량 +25%', color: '#a07a4a' },
-    { id: 'finger_bone', name: '성자의 손가락뼈', desc: '아군이 적을 처치하면 8% 확률로 피의 정수 +1', color: '#e8e0c8' },
+    { id: 'finger_bone', name: '성자의 손가락뼈', desc: '아군이 적을 처치하면 8% 확률로 핵 조각 +1', color: '#e8e0c8' },
     { id: 'thorn_mail', name: '가시 갑옷 조각', desc: '근접 공격을 받으면 받은 피해의 20%를 돌려준다', color: '#8a9a6a' },
     { id: 'iron_boots', name: '철갑 장화', desc: '아군 이동 +1', color: '#a9b2c3' },
     { id: 'holy_vial', name: '성수병', desc: '아군이 받는 지속 피해(출혈·중독·화상) -50%', color: '#bff0ff' },

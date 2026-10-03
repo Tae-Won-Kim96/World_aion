@@ -24,7 +24,7 @@ export class TownScene extends Phaser.Scene {
       this.tweens.add({ targets: f, alpha: { from: 0, to: 0.9 }, y: f.y - Phaser.Math.Between(10, 40), duration: Phaser.Math.Between(1400, 3000), yoyo: true, repeat: -1, delay: Phaser.Math.Between(0, 3000) });
     }
 
-    // 혈주는 저택 문 앞에 선다
+    // 지휘관은 성채 문 앞에 선다
     if (!store.s.lordChar.dormant) {
       const lordKey = ensureSheetTexture(this.textures, lookFromCharacter(store.lord()));
       const ls = this.add.sprite(500, 600, lordKey, 0).setOrigin(0.5, 1).setScale(3).setDepth(600);

@@ -1,14 +1,14 @@
 import type { FactionDef, FactionId } from '../types';
 
 export const FACTIONS: Record<FactionId, FactionDef> = {
-  radiance: { id: 'radiance', name: '성광 교단', color: '#f4d35e', desc: '빛의 신 솔라를 섬기는 교단. 언데드·악마·흡혈귀를 증오한다.' },
+  radiance: { id: 'radiance', name: '성광 교단', color: '#f4d35e', desc: '빛의 신 솔라를 섬기는 교단. 언데드·악마·흡혈귀를 증오하고, 세계핵의 결속을 신성모독으로 여긴다.' },
   kingdom: { id: 'kingdom', name: '아르덴 왕국', color: '#4f7cff', desc: '인간 왕국과 그에 충성하는 기사가문들.' },
   silverwood: { id: 'silverwood', name: '은빛숲 연합', color: '#7bd389', desc: '엘프와 숲의 수호자들이 맺은 오래된 연합.' },
   ironhold: { id: 'ironhold', name: '철망치 씨족연합', color: '#c08552', desc: '드워프와 노움의 산악 씨족들. 금속과 계약을 중시한다.' },
   horde: { id: 'horde', name: '핏빛황야 대부족', color: '#d1495b', desc: '오크와 트롤의 부족 연합. 힘이 곧 법이다.' },
   abyss: { id: 'abyss', name: '심연의 성가대', color: '#2ec4b6', desc: '바다 밑 옛 신을 노래하는 딥원과 광신도들.' },
   infernal: { id: 'infernal', name: '지옥문 계약단', color: '#ff6b35', desc: '악마·임프·흑마법사의 계약 결사.' },
-  nightcourt: { id: 'nightcourt', name: '밤의 궁정', color: '#b5179e', desc: '흡혈귀 귀족들의 궁정. 혈주의 옛 혈족.' },
+  nightcourt: { id: 'nightcourt', name: '밤의 궁정', color: '#b5179e', desc: '대붕괴 이후 밤을 지배하게 된 흡혈귀 귀족들의 궁정.' },
   guild: { id: 'guild', name: '금화 상인길드', color: '#e9c46a', desc: '돈이면 무엇이든 거래하는 대륙 최대의 상단.' },
   wildlands: { id: 'wildlands', name: '거친들 수렵부족', color: '#a7c957', desc: '수인과 사냥꾼들의 자유 부족.' },
 };

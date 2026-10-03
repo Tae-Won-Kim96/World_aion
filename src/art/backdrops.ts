@@ -51,7 +51,7 @@ export function drawTownBackdrop(graves: number, seed = 7): PixBuf {
     const h2 = 118 + Math.round(Math.sin(x * 0.05 + 2) * 6 + Math.sin(x * 0.17) * 2);
     for (let y = h2; y < GROUND_Y; y++) b.set(x, y, hex('#161126'));
   }
-  // 저택
+  // 성채 (재건 거점)
   const W = ramp('#2a2236');
   const lit = hex('#ffcf6a');
   const litD = hex('#d08a3a');
