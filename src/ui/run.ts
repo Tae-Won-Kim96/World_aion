@@ -6,7 +6,7 @@ import { EVENTS } from '../core/data/events';
 import { condMatch, DARKNESS_NAMES, darkness, NODE_NAMES, reachable, type RunState } from '../core/dungeon';
 import { mixSeed, Rng } from '../core/rng';
 import { store } from '../core/state';
-import { computeStats, fullName, partySynergy } from '../core/stats';
+import { computeStats, fullName } from '../core/stats';
 import { app } from './app';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
 import { hpBar, itemRow, relicIcon, starsEl } from './widgets';
@@ -18,7 +18,7 @@ function topBar(run: RunState): HTMLElement {
   const node = run.nodes.find((n) => n.id === run.current);
   const dk = darkness(run.torch);
   const party = store.partyChars();
-  const syn = partySynergy(store.activeParty());
+  const morale = store.partyMorale(store.activeParty());
   return h('div', { class: 'run-top' },
     h('b', { class: 'gold', style: { fontSize: '15px' } }, d.name),
     h('span', { class: 'dim' }, !node ? '입구' : node.kind === 'boss' ? '보스의 방' : `${node.layer + 1}층 / ${d.floors}층`),
@@ -29,7 +29,7 @@ function topBar(run: RunState): HTMLElement {
     h('span', { class: 'res' }, h('span', { class: 'vamp' }, '●'), `${run.essence}`),
     tooltip(h('span', { class: 'res' }, '▣', `${run.loot.length}`), run.loot.length ? `이번 원정 전리품\n${run.loot.map((i) => `· ${i.name}`).join('\n')}\n(전멸하면 잃는다)` : '이번 원정 전리품 없음'),
     h('div', { class: 'relics' }, ...run.relics.map((r) => relicIcon(r, 24))),
-    tooltip(h('span', { class: syn.morale > 0 ? 'good' : syn.morale < 0 ? 'bad' : 'dim' }, `사기 ${syn.morale > 0 ? '+' : ''}${syn.morale}`), '파티원 간 진영 상성으로 정해진다.'),
+    tooltip(h('span', { class: morale > 0 ? 'good' : morale < 0 ? 'bad' : 'dim' }, `사기 ${morale > 0 ? '+' : ''}${morale}`), '파티원 간 진영 상성과 관계(전우·앙숙)로 정해진다.'),
     h('span', { class: 'grow' }),
     h('span', { class: 'small mute' }, `원정 #${run.runNo} · ${party.length}명`),
     h('button', {
@@ -145,7 +145,7 @@ export function renderRun(): void {
     const n = run.notice;
     modal(h('div', { class: 'col', style: { width: '460px' } },
       h('h2', null, n.title),
-      ...n.lines.map((l) => h('div', { style: { lineHeight: '1.7' } }, l)),
+      ...n.lines.map((l) => h('div', { class: /^[^:]{1,14}: "/.test(l) ? 'talk' : l.startsWith('(') || l.startsWith('—') ? 'small dim' : '', style: { lineHeight: '1.7' } }, l)),
       h('div', { class: 'row end' }, h('button', { class: 'btn primary', onclick: () => { store.dismissNotice(); renderRun(); } }, '확인')),
     ), { closable: false });
   }

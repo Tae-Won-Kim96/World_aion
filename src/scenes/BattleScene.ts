@@ -12,7 +12,6 @@ import {
 import { DUNGEONS } from '../core/data/dungeons';
 import { ENEMIES } from '../core/data/enemies';
 import { store, type BattleResult } from '../core/state';
-import { partySynergy } from '../core/stats';
 import type { FxKind } from '../core/types';
 import { app } from '../ui/app';
 import { BattleHud } from '../ui/battleHud';
@@ -60,8 +59,8 @@ export class BattleScene extends Phaser.Scene {
     const run = store.s.run!;
     const spec = run.battle!;
     const party = store.activeParty();
-    const morale = partySynergy(party).morale;
-    this.st = createBattle({ party: party.map((c) => ({ char: c, hp: run.hp[c.id] })), spec, morale, relics: run.relics });
+    const morale = store.partyMorale(party);
+    this.st = createBattle({ party: party.map((c) => ({ char: c, hp: run.hp[c.id] })), spec, morale, relics: run.relics, bonds: store.partyBonds(party) });
     this.vis.clear();
     this.looks.clear();
     this.deaths = [];
@@ -105,7 +104,10 @@ export class BattleScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.hud.destroy());
     for (const l of this.st.log) this.hud.log(l);
     this.banner(spec.boss ? '보스 전투' : spec.ambush ? '기습!' : spec.elite ? '정예 전투' : '전투 개시');
-    this.time.delayedCall(700, () => void this.loop());
+    this.time.delayedCall(700, () => {
+      this.st.opening.forEach((o, i) => this.time.delayedCall(i * 900, () => { const u = this.st.units.find((x) => x.uid === o.src); if (u) this.speak(u, o.text); }));
+      void this.loop();
+    });
   }
 
   // ------------------------------------------------------------ 표시
@@ -190,6 +192,26 @@ export class BattleScene extends Phaser.Scene {
 
   banner(text: string): void {
     this.hud.banner(text);
+  }
+
+  /** 말풍선 */
+  speak(u: Unit, text: string): void {
+    const v = this.vis.get(u.uid);
+    if (!v) return;
+    this.hud.log(`${u.voice?.name ?? u.name}: "${text}"`);
+    const x = v.spr.x;
+    const y = v.spr.y - 40 * v.scale - 22;
+    const t = this.add.text(0, 0, text, { fontFamily: 'Galmuri11', fontSize: '13px', color: '#1a1020', wordWrap: { width: 170, useAdvancedWrap: true }, align: 'center' }).setOrigin(0.5, 1);
+    const w = t.width + 14;
+    const hgt = t.height + 8;
+    const g = this.add.graphics();
+    g.fillStyle(0xf6efe0, 0.96).fillRoundedRect(-w / 2, -hgt - 4, w, hgt, 6);
+    g.lineStyle(2, 0x1a1020, 1).strokeRoundedRect(-w / 2, -hgt - 4, w, hgt, 6);
+    g.fillStyle(0xf6efe0, 1).fillTriangle(-5, -5, 5, -5, 0, 2);
+    t.setPosition(0, -8);
+    const c = this.add.container(Math.max(w / 2 + 4, Math.min(this.scale.width - w / 2 - 4, x)), y, [g, t]).setDepth(1100).setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, y: y - 4, duration: 160 });
+    this.time.delayedCall(1700 / Math.min(this.speed, 2), () => this.tweens.add({ targets: c, alpha: 0, duration: 250, onComplete: () => c.destroy() }));
   }
 
   floatText(x: number, y: number, text: string, color: string, size = 18): void {
@@ -509,6 +531,11 @@ export class BattleScene extends Phaser.Scene {
         case 'log':
           this.hud.log(e.text);
           break;
+        case 'say': {
+          this.speak(byId(e.src), e.text);
+          await wait(this, 350 / this.speed);
+          break;
+        }
         case 'gold': {
           const t = byId(e.src);
           const v = this.vis.get(t.uid)!;
@@ -639,6 +666,13 @@ export class BattleScene extends Phaser.Scene {
     await this.finish();
   }
 
+  private adjacentPairs(): [string, string][] {
+    const al = this.st.units.filter((u) => u.side === 'ally' && u.alive && u.charId);
+    const out: [string, string][] = [];
+    for (let i = 0; i < al.length; i++) for (let j = i + 1; j < al.length; j++) if (Math.abs(al[i].x - al[j].x) + Math.abs(al[i].y - al[j].y) === 1) out.push([al[i].charId!, al[j].charId!]);
+    return out;
+  }
+
   private async finish(): Promise<void> {
     const victory = this.st.over === 'victory';
     this.banner(victory ? '승리!' : '패배…');
@@ -651,6 +685,7 @@ export class BattleScene extends Phaser.Scene {
       cheatDeathUsed: this.st.cheatUsed,
       bonusEssence: this.st.bonusEssence,
       bonusGold: this.st.bonusGold,
+      adjacent: this.adjacentPairs(),
     };
     const summary = store.battleFinished(res);
     this.hud.showResult(victory, summary);

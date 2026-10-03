@@ -12,6 +12,7 @@ import { LORD_SLOTS, PARTY_SIZE, STASH_CAP, store } from '../core/state';
 import { compatibility, DISCORD_T, fullName, HARMONY_T, partySynergy, powerScore, topFactions } from '../core/stats';
 import type { Character, FactionId, GearSlot } from '../core/types';
 import { lordExpToNext, bindSlots } from '../core/bond';
+import { TIER_ICONS, TIER_NAMES, tierOf } from '../core/relations';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
 import { charCard, charDetail, houseChip, itemRow, raceClassLine, starsEl } from './widgets';
 import { app } from './app';
@@ -121,7 +122,7 @@ export function openRoster(focusId?: string): void {
     for (const ch of sorted()) list.appendChild(charCard(ch, { selected: ch.id === selected, onClick: (c) => { selected = c.id; render(); } }));
     clear(detailWrap);
     const ch = selected ? store.char(selected) : undefined;
-    if (ch) detailWrap.appendChild(charDetail(ch, actionsFor(ch), (slot) => openGearPicker(ch, slot, render)));
+    if (ch) detailWrap.appendChild(charDetail(ch, actionsFor(ch), (slot) => openGearPicker(ch, slot, render), relationsPanel(ch)));
     else detailWrap.appendChild(h('div', { class: 'dim' }, '동료가 없다. 모집소에서 새 동료를 찾아보자.'));
   };
   const actionsFor = (ch: Character): HTMLElement => {
@@ -278,7 +279,7 @@ function openLord(): void {
     body.append(
       h('h2', { style: { marginRight: '28px' } }, '지휘관'),
       h('div', { class: 'small dim', style: { lineHeight: '1.6' } }, '지휘관은 직접 원정에 나설 수 있다(파티 한 자리 차지). 동료를 결속하면 그 기술을 세계핵에 기록하고, 함께 싸워 이기면 동료의 기술을 익히기도 한다. 쓰러져도 죽지 않고 원정 1회 동안 휴면한다.'),
-      charDetail(lord, panel, (slot) => openGearPicker(lord, slot, render)),
+      charDetail(lord, panel, (slot) => openGearPicker(lord, slot, render), relationsPanel(lord)),
     );
   };
   render();
@@ -324,16 +325,54 @@ function openSettings(): void {
   ));
 }
 
+// ================================================================== 관계
+export function tierChip(score: number): HTMLElement {
+  const t = tierOf(score);
+  return h('span', { class: `chip tier-${t}` }, `${TIER_ICONS[t]} ${TIER_NAMES[t]}`);
+}
+
+function relationsPanel(ch: Character): HTMLElement {
+  const rels = store.relationsOf(ch).filter((r) => r.other.dormant >= 0).slice(0, 8);
+  return h('div', null,
+    h('h3', null, '관계'),
+    rels.length ? null : h('div', { class: 'small dim' }, '아직 아는 동료가 없다.'),
+    ...rels.map((r) => {
+      const w = (Math.abs(r.score) / 100) * 50;
+      const bar = h('div', { class: 'affbar' }, h('span', { class: 'mid' }),
+        h('i', { style: { left: r.score >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: r.score >= 0 ? '#7ad08a' : '#e0606a' } }));
+      const tip = [
+        `${fullName(r.other)} — ${TIER_NAMES[tierOf(r.score)]} (${r.score > 0 ? '+' : ''}${r.score})`,
+        ...r.reasons.map((x) => `· ${x}`),
+        r.bond ? `함께한 전투 ${r.bond.battles}회 · 모닥불 대화 ${r.bond.talks}회` : '아직 함께한 일이 없다.',
+        ...(r.bond?.notes ?? []).map((n) => `「${n}」`),
+      ].join('\n');
+      return tooltip(h('div', { class: 'rel' }, h('span', { class: 'rn' }, r.other.given), tierChip(r.score), bar), tip);
+    }),
+  );
+}
+
 // ================================================================== 원정 준비
 function synergyView(party: Character[]): HTMLElement {
   const syn = partySynergy(party);
+  const morale = store.partyMorale(party);
   const byId = (id: string) => party.find((c) => c.id === id)!;
+  const pairs: HTMLElement[] = [];
+  for (let i = 0; i < party.length; i++) {
+    for (let j = i + 1; j < party.length; j++) {
+      const sc = store.bondScoreOf(party[i], party[j]);
+      const t = tierOf(sc);
+      if (t === 'neutral') continue;
+      pairs.push(h('div', { class: 'row small' }, tierChip(sc), `${party[i].given} ↔ ${party[j].given}`,
+        h('span', { class: 'dim' }, t === 'sworn' || t === 'comrade' ? ' (붙어 서면 피해 증가 · 쓰러지면 복수)' : ' (붙어 서면 피해 감소)')));
+    }
+  }
   return h('div', { class: 'syn' },
-    h('div', null, '사기: ', h('b', { class: syn.morale > 0 ? 'good' : syn.morale < 0 ? 'bad' : 'dim' }, `${syn.morale > 0 ? '+' : ''}${syn.morale}`),
-      h('span', { class: 'dim' }, `  (공격·마력·방어·저항 ${syn.morale >= 0 ? '+' : ''}${syn.morale * 4}%)`)),
-    ...syn.pairs.map((p) => h('div', { class: p.kind === 'harmony' ? 'good' : 'bad' },
-      `${p.kind === 'harmony' ? '♥ 화합' : '⚡ 불화'}: ${fullName(byId(p.a))} ↔ ${fullName(byId(p.b))} (${p.score.toFixed(1)})`)),
-    syn.pairs.length === 0 && party.length > 1 ? h('div', { class: 'dim' }, '특별한 화합도 불화도 없다.') : null,
+    h('div', null, '사기: ', h('b', { class: morale > 0 ? 'good' : morale < 0 ? 'bad' : 'dim' }, `${morale > 0 ? '+' : ''}${morale}`),
+      h('span', { class: 'dim' }, `  (공격·마력·방어·저항 ${morale >= 0 ? '+' : ''}${morale * 4}%)`)),
+    ...syn.pairs.map((p) => h('div', { class: p.kind === 'harmony' ? 'good small' : 'bad small' },
+      `${p.kind === 'harmony' ? '♥ 진영 화합' : '⚡ 진영 불화'}: ${fullName(byId(p.a))} ↔ ${fullName(byId(p.b))}`)),
+    ...pairs,
+    syn.pairs.length === 0 && pairs.length === 0 && party.length > 1 ? h('div', { class: 'dim' }, '특별한 사이는 없다. 함께 싸우고 모닥불을 쬐다 보면 달라질 것이다.') : null,
   );
 }
 

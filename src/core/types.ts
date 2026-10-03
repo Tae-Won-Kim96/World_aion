@@ -241,6 +241,7 @@ export interface HouseDef {
   forbidBound?: boolean;  // 결속 시 파문
   rarity: 'named' | 'legendary';
   motto?: string;           // 표어 (대사·툴팁)
+  ranks?: [string, string]; // 소속 내 위계 호칭 [윗사람, 아랫사람]
 }
 
 export interface FactionDef {

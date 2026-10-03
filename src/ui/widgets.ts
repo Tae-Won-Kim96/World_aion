@@ -13,6 +13,8 @@ import { SKILLS } from '../core/data/skills';
 import { TRAITS } from '../core/data/traits';
 import { characterAffinity, computeStats, expToNext, fullName, levelCap, powerScore } from '../core/stats';
 import { type Character, type GearSlot, type Item, STAT_KEYS, STAT_NAMES } from '../core/types';
+import { bark, voiceOf } from '../core/dialogue';
+import { mixSeed, Rng } from '../core/rng';
 import { h, tooltip } from './dom';
 
 export function starsEl(n: number, max = 5): HTMLElement {
@@ -125,7 +127,7 @@ function affinityRows(ch: Character): HTMLElement[] {
 }
 
 /** 캐릭터 상세 시트 */
-export function charDetail(ch: Character, actions: HTMLElement | null = null, onGear?: (slot: GearSlot) => void): HTMLElement {
+export function charDetail(ch: Character, actions: HTMLElement | null = null, onGear?: (slot: GearSlot) => void, extra: HTMLElement | null = null): HTMLElement {
   const look = lookFromCharacter(ch);
   const st = computeStats(ch);
   const c = CLASSES[ch.cls];
@@ -144,6 +146,7 @@ export function charDetail(ch: Character, actions: HTMLElement | null = null, on
       ch.isLord ? h('span', { class: 'chip core' }, '♛ 지휘관 · 쓰러지면 1회 휴면') : ch.vampire ? h('span', { class: 'chip core' }, `◈ 결속자 (Lv.${ch.turnedAtLevel}에 결속, 성장 정지)`) : h('span', { class: 'chip' }, '필멸자 · 사망 시 묘지행'),
       ch.dormant > 0 ? h('span', { class: 'chip neg' }, `◈ 세계핵에서 휴면 (원정 ${ch.dormant}회)`) : null,
       h('div', { class: 'small dim' }, `처치 ${ch.kills} · 원정 ${ch.runs}회`),
+      h('div', { class: 'quote' }, `"${bark(new Rng(mixSeed(ch.seed, 'quote')), voiceOf(ch), ch.runs > 0 ? 'start' : 'recruit') ?? '…'}"`),
       actions,
     ),
     h('div', { class: 'col scroll', style: { maxHeight: '560px' } },
@@ -171,6 +174,7 @@ export function charDetail(ch: Character, actions: HTMLElement | null = null, on
       h('div', { class: 'small dim', style: { lineHeight: '1.6' } }, ...[...ch.traits, ...ch.curses, ...ch.blessings].map((id) => h('div', null, `· ${TRAITS[id].name}: ${TRAITS[id].desc}`))),
       h('h3', null, '종족'),
       h('div', { class: 'small dim', style: { lineHeight: '1.6' } }, `${r.name}: ${r.desc}`, r.canBind ? null : h('div', { class: 'bad' }, `결속 불가 — ${r.bindNote ?? ''}`)),
+      extra,
       h('h3', null, '진영 호감 (시작 호감도)'),
       ...affinityRows(ch),
     ),

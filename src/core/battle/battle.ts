@@ -4,6 +4,8 @@ import { ENEMIES } from '../data/enemies';
 import { RACES } from '../data/races';
 import { SKILLS } from '../data/skills';
 import type { BattleSpec, Darkness } from '../dungeon';
+import { bark, type Voice, voiceOf } from '../dialogue';
+import { adjacencyMul, pairKey, tierOf } from '../relations';
 import { Rng } from '../rng';
 import { computeEffects, computeStats, fullName } from '../stats';
 import {
@@ -45,6 +47,9 @@ export interface Unit {
   level: number;
   pending?: Pending;
   phasesDone?: number[];
+  voice?: Voice;                      // 동료의 말투
+  bondMates?: Record<string, number>; // 다른 동료 uid → 관계 점수
+  saidHurt?: boolean;
 }
 
 /** 예고 공격: 다음 자기 턴 시작 시 발동 */
@@ -67,6 +72,7 @@ export type BEvent =
   | { t: 'phase'; src: string; text: string }
   | { t: 'spawn'; uid: string }
   | { t: 'gold'; src: string; amount: number }
+  | { t: 'say'; src: string; text: string }
   | { t: 'log'; text: string };
 
 export interface BattleState {
@@ -85,6 +91,8 @@ export interface BattleState {
   spawnN: number;
   bonusEssence: number;
   bonusGold: number;
+  talkRng: Rng;                        // 대사 전용 (전투 난수와 분리)
+  opening: { src: string; text: string }[];
 }
 
 export interface Action { id: string; name: string; skill: SkillDef; isAttack: boolean }
@@ -106,7 +114,7 @@ function unitFromChar(ch: Character, hp: number, morale: number): Unit {
   return {
     uid: ch.id, side: 'ally', name: fullName(ch), charId: ch.id, seed: ch.seed,
     x: 0, y: 0, stats, maxHp: stats.hp, hp: Math.min(stats.hp, hp),
-    eff, tags: [...RACES[ch.race].tags, ...(ch.vampire ? ['bound'] : [])], role: c.role,
+    eff, tags: [...RACES[ch.race].tags, ...(ch.vampire ? ['bound'] : [])], role: c.role, voice: voiceOf(ch),
     attack: c.attack, skills: [...ch.skills], cd: {}, statuses: [], ct: 0, alive: hp > 0,
     vampire: ch.vampire, boss: false, elite: false, cheatDeath: eff.cheatDeath, kills: 0, level: ch.level,
   };
@@ -144,6 +152,7 @@ export interface BattleInput {
   spec: BattleSpec;
   morale: number;
   relics?: string[];
+  bonds?: Record<string, number>; // pairKey(charId, charId) → 관계 점수
 }
 
 export function createBattle(input: BattleInput): BattleState {
@@ -151,7 +160,7 @@ export function createBattle(input: BattleInput): BattleState {
   const st: BattleState = {
     w: GRID_W, h: GRID_H, obstacles: [], units: [], turn: 0, rng,
     darkness: input.spec.darkness, morale: input.morale, over: null, log: [], cheatUsed: [],
-    relics: [...(input.relics ?? [])], spawnN: 0, bonusEssence: 0, bonusGold: 0,
+    relics: [...(input.relics ?? [])], spawnN: 0, bonusEssence: 0, bonusGold: 0, talkRng: new Rng((input.spec.seed ^ 0x5eed1e) >>> 0), opening: [],
   };
   const allies = input.party.filter((p) => p.hp > 0).map((p) => unitFromChar(p.char, p.hp, input.morale));
   const enemies = input.spec.enemies.map((e, i) => unitFromEnemy(e.def, e.level, e.seed, i));
@@ -208,6 +217,20 @@ export function createBattle(input: BattleInput): BattleState {
     if (has('wind_feather')) { u.statuses.push({ id: 'haste', turns: 2 }); u.ct += 20; }
   }
   if (input.spec.ambush) st.log.push('기습당했다! 적이 먼저 움직인다.');
+  // 관계: 동료끼리의 점수
+  const mates = st.units.filter((u) => u.side === 'ally' && u.charId);
+  if (input.bonds) {
+    for (const u of mates) {
+      u.bondMates = {};
+      for (const v of mates) if (v !== u) { const sc = input.bonds[pairKey(u.charId!, v.charId!)]; if (sc !== undefined) u.bondMates[v.uid] = sc; }
+    }
+  }
+  // 전투 시작 한마디 (1~2명)
+  const speakers = st.talkRng.shuffle(mates.filter((u) => u.alive && u.voice)).slice(0, st.talkRng.chance(0.4) ? 2 : 1);
+  for (const u of speakers) {
+    const text = bark(st.talkRng, u.voice!, 'start');
+    if (text) st.opening.push({ src: u.uid, text });
+  }
   return st;
 }
 
@@ -545,12 +568,34 @@ export function affectedUnits(st: BattleState, u: Unit, a: Action, tx: number, t
 
 // ---------------------------------------------------------------- 피해 계산
 
-function atkMul(u: Unit): number {
+function atkMul(st: BattleState, u: Unit): number {
   let m = 1;
   if (hasStatus(u, 'bless')) m *= 1.25;
   if (hasStatus(u, 'weak')) m *= 0.75;
   if (u.eff.lowHpRage && u.hp < u.maxHp * 0.5) m *= 1 + u.eff.lowHpRage;
-  return m * u.eff.dmgMul;
+  return m * u.eff.dmgMul * bondAdjMul(st, u);
+}
+
+/** 옆에 선 동료와의 관계: 가장 좋은 전우 보너스 × 가장 나쁜 앙숙 패널티 */
+export function bondAdjMul(st: BattleState, u: Unit): number {
+  if (!u.bondMates) return 1;
+  let best = 1;
+  let worst = 1;
+  for (const v of st.units) {
+    if (!v.alive || v === u || v.side !== u.side || dist(v, u) !== 1) continue;
+    const sc = u.bondMates[v.uid];
+    if (sc === undefined) continue;
+    const m = adjacencyMul(sc);
+    best = Math.max(best, m);
+    worst = Math.min(worst, m);
+  }
+  return best * worst;
+}
+
+function say(st: BattleState, u: Unit, sit: Parameters<typeof bark>[2], ev: BEvent[], target?: string): void {
+  if (!u.voice || !u.alive) return;
+  const text = bark(st.talkRng, u.voice, sit, { target });
+  if (text) ev.push({ t: 'say', src: u.uid, text });
 }
 
 function guardAuraFor(st: BattleState, t: Unit): number {
@@ -569,7 +614,7 @@ export function estimateDamage(st: BattleState, u: Unit, t: Unit, s: SkillDef): 
 function damageCore(st: BattleState, u: Unit, t: Unit, s: SkillDef, crit: boolean, variance: number): { dmg: number } {
   const kind: DamageKind = s.kind === 'phys' ? 'phys' : 'mag';
   const base = kind === 'phys' ? u.stats.atk : u.stats.mag;
-  let raw = base * s.power * 1.25 * atkMul(u);
+  let raw = base * s.power * 1.25 * atkMul(st, u);
   const def = (kind === 'phys' ? t.stats.def : t.stats.res) * (1 - (s.pierce ?? 0));
   raw *= 30 / (30 + Math.max(0, def) * 2.5);
   const tags = unitTags(t);
@@ -630,6 +675,30 @@ function handleLethal(st: BattleState, t: Unit, by: string, ev: BEvent[]): void 
   t.hp = 0;
   t.alive = false;
   ev.push({ t: 'death', dst: t.uid, by });
+  if (t.side === 'ally' && t.charId) reactToDeath(st, t, ev);
+}
+
+/** 동료가 쓰러지면: 전우·맹우는 복수를 맹세하고, 앙숙은… 복잡한 기분이 된다 */
+function reactToDeath(st: BattleState, t: Unit, ev: BEvent[]): void {
+  const name = t.voice?.name ?? t.name;
+  let spoke = false;
+  for (const u of st.units) {
+    if (!u.alive || u.side !== 'ally' || !u.bondMates || u.bondMates[t.uid] === undefined) continue;
+    const tier = tierOf(u.bondMates[t.uid]);
+    if (tier === 'comrade' || tier === 'sworn') {
+      applyStatus(st, u, u, { id: 'bless', turns: 3 }, ev);
+      if (tier === 'sworn') applyStatus(st, u, u, { id: 'haste', turns: 2 }, ev);
+      say(st, u, 'vengeance', ev, name);
+      spoke = true;
+    } else if ((tier === 'rival' || tier === 'nemesis') && st.talkRng.chance(0.6)) {
+      say(st, u, 'rivalDown', ev, name);
+      spoke = true;
+    }
+  }
+  if (!spoke) {
+    const others = st.units.filter((u) => u.alive && u.side === 'ally' && u.voice);
+    if (others.length) say(st, st.talkRng.pick(others), 'allyDown', ev, name);
+  }
 }
 
 function dealDamage(st: BattleState, u: Unit, t: Unit, s: SkillDef, ev: BEvent[]): number {
@@ -648,7 +717,12 @@ function dealDamage(st: BattleState, u: Unit, t: Unit, s: SkillDef, ev: BEvent[]
     if (!t.alive) {
       u.kills++;
       if (u.side === 'ally') onAllyKill(st, u, ev);
+      if (t.side === 'enemy' && st.talkRng.chance(0.3)) say(st, u, 'kill', ev, t.name);
     }
+  }
+  if (t.alive && t.voice && !t.saidHurt && t.hp < t.maxHp * 0.3) {
+    t.saidHurt = true;
+    if (st.talkRng.chance(0.6)) say(st, t, 'hurt', ev);
   }
   checkPhases(st, t, ev);
   // 가시 갑옷: 근접 피해 반사

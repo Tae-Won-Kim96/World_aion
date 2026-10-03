@@ -9,7 +9,7 @@ const ALL_BUT_HOLY: RaceId[] = (Object.keys(RACES) as RaceId[]).filter((r) => ![
 export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
   ([
     {
-      id: 'halton', name: '할튼 기사단', short: '할튼', surname: '할튼', rarity: 'named', emblem: '⛨', motto: '방패는 나를 위해 들지 않는다.',
+      id: 'halton', name: '할튼 기사단', short: '할튼', surname: '할튼', rarity: 'named', emblem: '⛨', ranks: ['기사', '종자'], motto: '방패는 나를 위해 들지 않는다.',
       desc: '왕국 서부를 지켜온 기사단. 단원은 서로의 방패가 되기를 맹세한다.',
       cond: { races: ['human'], minStar: 3, classes: ['knight', 'paladin', 'lancer', 'warrior'], anyTraits: ['oath', 'noble', 'brave', 'devout', 'veteran', 'tough', 'strong_will', 'iron_skin'] },
       chance: 1,
@@ -17,7 +17,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { kingdom: 2, radiance: 1 }, colors: ['#2f4fa8', '#e8d07a'], forbidBound: true,
     },
     {
-      id: 'medini', name: '메디니 가문', short: '메디니', surname: '메디니', rarity: 'named', emblem: '⚜', motto: '금화는 피보다 진하다.',
+      id: 'medini', name: '메디니 가문', short: '메디니', surname: '메디니', rarity: 'named', emblem: '⚜', ranks: ['가주 대리', '식객'], motto: '금화는 피보다 진하다.',
       desc: '금화와 독으로 왕좌 뒤를 움직이는 상인 귀족 가문.',
       cond: { races: ['human', 'darkelf', 'halfling', 'foxkin'], minStar: 3, anyTraits: ['merchant_blood', 'greedy', 'silver_tongue', 'noble'] },
       chance: 0.85,
@@ -25,7 +25,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { guild: 3, kingdom: -1 }, colors: ['#7a1f3d', '#d9b45a'],
     },
     {
-      id: 'astra', name: '아스트라 성좌회', short: '아스트라', surname: '아스트라', rarity: 'named', emblem: '✶', motto: '별은 이미 알고 있다.',
+      id: 'astra', name: '아스트라 성좌회', short: '아스트라', surname: '아스트라', rarity: 'named', emblem: '✶', ranks: ['성좌', '견습'], motto: '별은 이미 알고 있다.',
       desc: '별을 읽는 마법사들의 비밀 결사. 별이 허락한 자만 들인다.',
       cond: { races: ['elf', 'human', 'gnome', 'divine', 'pixie', 'dragonkin'], minStar: 4, classes: ['mage', 'elementalist', 'astrologer', 'spellblade'] },
       chance: 1,
@@ -33,7 +33,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { kingdom: 1 }, colors: ['#23255e', '#a7c7ff'],
     },
     {
-      id: 'valok', name: '발로크 씨족', short: '발로크', surname: '발로크', rarity: 'named', emblem: '⚒', motto: '쓰러지는 건 산이 먼저다.',
+      id: 'valok', name: '발로크 씨족', short: '발로크', surname: '발로크', rarity: 'named', emblem: '⚒', ranks: ['씨족 어른', '막내'], motto: '쓰러지는 건 산이 먼저다.',
       desc: '무너진 요새에서 끝까지 버틴 드워프 씨족. 그들은 쓰러지지 않는다.',
       cond: { races: ['dwarf'], minStar: 2, classes: ['warrior', 'berserker', 'runesmith', 'tinker', 'knight'] },
       chance: 0.7,
@@ -41,7 +41,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { ironhold: 3 }, colors: ['#6b3b1f', '#c0c0c0'],
     },
     {
-      id: 'shadowhand', name: '그림자 손', short: '그림자손', rarity: 'named', emblem: '✋', motto: '이름은 묻지 마라.',
+      id: 'shadowhand', name: '그림자 손', short: '그림자손', rarity: 'named', emblem: '✋', ranks: ['손', '손톱'], motto: '이름은 묻지 마라.',
       desc: '이름 없는 암살자 길드. 누구에게도 소속을 밝히지 않는다.',
       cond: { races: ALL_BUT_HOLY, minStar: 3, classes: ['rogue', 'assassin', 'wanderer'], noTraits: ['devout', 'zealot', 'oath'] },
       chance: 0.8,
@@ -49,7 +49,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { guild: 1, kingdom: -2 }, colors: ['#1e1e24', '#7d2bd1'],
     },
     {
-      id: 'elaine', name: '성 일레인 수도회', short: '일레인', rarity: 'named', emblem: '✚', motto: '상처 입은 자에게 먼저 손을.',
+      id: 'elaine', name: '성 일레인 수도회', short: '일레인', rarity: 'named', emblem: '✚', ranks: ['원장', '수련자'], motto: '상처 입은 자에게 먼저 손을.',
       desc: '역병 속에서 성녀 일레인이 세운 수도회. 치유의 기적을 잇는다.',
       cond: { races: ['human', 'angel', 'halfling', 'dwarf', 'elf', 'rabbitkin', 'merfolk', 'water_spirit'], minStar: 3, classes: ['priest', 'monk', 'exorcist', 'paladin', 'mourner'], anyTraits: ['devout', 'zealot', 'oath'] },
       chance: 1,
@@ -57,7 +57,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { radiance: 3 }, colors: ['#f2f2f2', '#d4a017'], forbidBound: true,
     },
     {
-      id: 'bloodfang', name: '피송곳니 부족', short: '피송곳니', surname: '피송곳니', rarity: 'named', emblem: '⚔', motto: '피 냄새가 길을 알려 준다.',
+      id: 'bloodfang', name: '피송곳니 부족', short: '피송곳니', surname: '피송곳니', rarity: 'named', emblem: '⚔', ranks: ['족장의 송곳니', '새끼'], motto: '피 냄새가 길을 알려 준다.',
       desc: '황야에서 가장 사나운 전쟁 부족. 피를 볼수록 강해진다.',
       cond: { races: ['orc', 'troll', 'beastkin', 'wolfkin', 'halfogre', 'minotaur', 'lizardfolk'], minStar: 2, classes: ['warrior', 'berserker', 'shaman', 'hunter', 'beastmaster', 'butcher'] },
       chance: 0.6,
@@ -65,7 +65,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { horde: 3 }, colors: ['#5a1010', '#c9a36b'],
     },
     {
-      id: 'dagon', name: '다곤의 자손', short: '다곤', surname: '다곤', rarity: 'named', emblem: '♆', motto: '깊은 곳에서 왔고, 깊은 곳으로 간다.',
+      id: 'dagon', name: '다곤의 자손', short: '다곤', surname: '다곤', rarity: 'named', emblem: '♆', ranks: ['장자', '막내'], motto: '깊은 곳에서 왔고, 깊은 곳으로 간다.',
       desc: '심해 왕 다곤의 피를 이었다는 딥원 명가.',
       cond: { races: ['deepone'], minStar: 3 },
       chance: 0.8,
@@ -73,7 +73,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { abyss: 3, radiance: -2 }, colors: ['#0f4c5c', '#5ec4b6'],
     },
     {
-      id: 'ashcrown', name: '잿빛 왕관 가문', short: '잿빛왕관', surname: '바알로스', rarity: 'legendary', emblem: '♛', motto: '계약은 영원하다.',
+      id: 'ashcrown', name: '잿빛 왕관 가문', short: '잿빛왕관', surname: '바알로스', rarity: 'legendary', emblem: '♛', ranks: ['군주', '권속'], motto: '계약은 영원하다.',
       desc: '지옥 군주 바알로스의 직계 혈통. 피와 계약으로 다스린다.',
       cond: { races: ['demon', 'imp'], minStar: 4 },
       chance: 1,
@@ -81,7 +81,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { infernal: 3, radiance: -2 }, colors: ['#3b0a0a', '#ff6a00'],
     },
     {
-      id: 'seraph', name: '천상의 날개단', short: '천상', rarity: 'legendary', emblem: '☀', motto: '빛이 닿는 곳까지.',
+      id: 'seraph', name: '천상의 날개단', short: '천상', rarity: 'legendary', emblem: '☀', ranks: ['대천사', '수호자'], motto: '빛이 닿는 곳까지.',
       desc: '천상의 정예 수호대. 지상에 내려온 자는 손에 꼽는다.',
       cond: { races: ['angel', 'divine'], minStar: 5 },
       chance: 1,
@@ -89,7 +89,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { radiance: 3 }, colors: ['#ffffff', '#ffd84a'], forbidBound: true,
     },
     {
-      id: 'verdant', name: '녹음의 서약', short: '녹음', rarity: 'named', emblem: '❦', motto: '숲의 숨을 지킨다.',
+      id: 'verdant', name: '녹음의 서약', short: '녹음', rarity: 'named', emblem: '❦', ranks: ['순찰대장', '순찰병'], motto: '숲의 숨을 지킨다.',
       desc: '숲을 지키기로 맹세한 순찰자들.',
       cond: { races: ['elf', 'halfling', 'beastkin', 'gnome', 'catkin', 'foxkin', 'rabbitkin', 'birdfolk', 'dryad', 'satyr'], minStar: 2, classes: ['druid', 'hunter', 'archer', 'shaman', 'beastmaster', 'geomancer'] },
       chance: 0.6,
@@ -97,7 +97,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { silverwood: 2, wildlands: 2 }, colors: ['#2f6b2f', '#b5e07a'],
     },
     {
-      id: 'cogwright', name: '노움 톱니조합', short: '톱니조합', rarity: 'named', emblem: '⚙', motto: '톱니 하나가 세상을 돌린다.',
+      id: 'cogwright', name: '노움 톱니조합', short: '톱니조합', rarity: 'named', emblem: '⚙', ranks: ['장인', '도제'], motto: '톱니 하나가 세상을 돌린다.',
       desc: '대륙의 모든 태엽 장치 뒤에 있는 노움 장인 조합.',
       cond: { races: ['gnome', 'kobold'], minStar: 2, classes: ['tinker', 'alchemist', 'runesmith', 'gunner'] },
       chance: 0.8,
@@ -105,7 +105,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { ironhold: 2, guild: 1 }, colors: ['#7a5a2a', '#4fd1c5'],
     },
     {
-      id: 'core_covenant', name: '핵의 맹약단', short: '맹약단', rarity: 'legendary', emblem: '◈', motto: '핵이 뛰는 한 우리는 멈추지 않는다.',
+      id: 'core_covenant', name: '핵의 맹약단', short: '맹약단', rarity: 'legendary', emblem: '◈', ranks: ['맹약자', '새 맹약자'], motto: '핵이 뛰는 한 우리는 멈추지 않는다.',
       desc: '세계핵에 결속된 자들 중, 핵과 깊이 공명하는 자만 받아들이는 결사.',
       cond: { minStar: 3, vampire: true },
       chance: 1,
@@ -114,7 +114,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
     },
     // ================= 종족 집단 =================
     {
-      id: 'whiskers', name: '은방울 고양이단', short: '은방울', rarity: 'named', emblem: '♧', motto: '발소리는 없고, 지갑은 가볍게.',
+      id: 'whiskers', name: '은방울 고양이단', short: '은방울', rarity: 'named', emblem: '♧', ranks: ['큰고양이', '새끼고양이'], motto: '발소리는 없고, 지갑은 가볍게.',
       desc: '폐허의 지붕 위를 누비는 묘인족 도둑 결사. 목의 은방울은 울리지 않는다.',
       cond: { races: ['catkin'], minStar: 2, classes: ['rogue', 'assassin', 'bladedancer', 'conartist', 'archer'] },
       chance: 0.7,
@@ -122,7 +122,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 2, wildlands: 1 }, colors: ['#3a3a4a', '#d8dce8'],
     },
     {
-      id: 'ninetails', name: '구미호 사당', short: '구미호', surname: '호연', rarity: 'legendary', emblem: '☯', motto: '아홉 번 속이고, 한 번 웃는다.',
+      id: 'ninetails', name: '구미호 사당', short: '구미호', surname: '호연', rarity: 'legendary', emblem: '☯', ranks: ['구미', '어린 여우'], motto: '아홉 번 속이고, 한 번 웃는다.',
       desc: '천 년 묵은 여우들이 모시는 사당. 꼬리가 아홉에 가까운 자만 들어선다.',
       cond: { races: ['foxkin'], minStar: 4, classes: ['mage', 'witch', 'shaman', 'conartist', 'puppeteer', 'jester', 'elementalist'] },
       chance: 1,
@@ -130,7 +130,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { primal: 2, wildlands: 1 }, colors: ['#e07a2e', '#fff2d0'],
     },
     {
-      id: 'moonhowl', name: '달울음 무리', short: '달울음', surname: '달울음', rarity: 'named', emblem: '☾', motto: '무리가 곧 목숨.',
+      id: 'moonhowl', name: '달울음 무리', short: '달울음', surname: '달울음', rarity: 'named', emblem: '☾', ranks: ['우두머리', '막내'], motto: '무리가 곧 목숨.',
       desc: '보름달마다 함께 우는 늑대족 무리. 한 명이 쓰러지면 무리 전체가 사냥에 나선다.',
       cond: { races: ['wolfkin'], minStar: 2, classes: ['hunter', 'berserker', 'beastmaster', 'warrior', 'executioner'] },
       chance: 0.7,
@@ -138,7 +138,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { wildlands: 3 }, colors: ['#4a4a5a', '#c8d0e0'],
     },
     {
-      id: 'hareguard', name: '토끼굴 파수대', short: '토끼굴', rarity: 'named', emblem: '⚘', motto: '도망도 전술이다.',
+      id: 'hareguard', name: '토끼굴 파수대', short: '토끼굴', rarity: 'named', emblem: '⚘', ranks: ['굴지기', '새내기'], motto: '도망도 전술이다.',
       desc: '굴을 지키는 토끼족 파수꾼들. 싸우는 법보다 살아남는 법을 먼저 가르친다.',
       cond: { races: ['rabbitkin'], minStar: 2 },
       chance: 0.6,
@@ -146,7 +146,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { wildlands: 2, kingdom: 1 }, colors: ['#f4f0ec', '#7aa05a'],
     },
     {
-      id: 'honeypaw', name: '꿀발바닥 형제단', short: '꿀발바닥', rarity: 'named', emblem: '✿', motto: '배부르면 싸우지 않는다. 배고프면…',
+      id: 'honeypaw', name: '꿀발바닥 형제단', short: '꿀발바닥', rarity: 'named', emblem: '✿', ranks: ['큰형', '막내'], motto: '배부르면 싸우지 않는다. 배고프면…',
       desc: '곰족 양봉가 형제단. 벌집을 건드린 자의 이야기는 전해지지 않는다.',
       cond: { races: ['bearkin'], minStar: 2 },
       chance: 0.6,
@@ -154,7 +154,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { wildlands: 2, ironhold: 1 }, colors: ['#6e4529', '#f2c94c'],
     },
     {
-      id: 'skyreach', name: '하늘솟음 둥지', short: '하늘솟음', rarity: 'named', emblem: '⇡', motto: '땅에 발을 대는 건 죽을 때뿐.',
+      id: 'skyreach', name: '하늘솟음 둥지', short: '하늘솟음', rarity: 'named', emblem: '⇡', ranks: ['둥지지기', '새끼새'], motto: '땅에 발을 대는 건 죽을 때뿐.',
       desc: '절벽 꼭대기 둥지의 조인족 궁수대. 깃털 하나로 바람을 읽는다.',
       cond: { races: ['birdfolk'], minStar: 3, classes: ['archer', 'gunner', 'bard', 'hunter', 'scavenger'] },
       chance: 0.8,
@@ -162,7 +162,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { wildlands: 1, silverwood: 1 }, colors: ['#3a7ab0', '#f2f2f2'],
     },
     {
-      id: 'sunscale', name: '태양비늘 부족', short: '태양비늘', rarity: 'named', emblem: '☼', motto: '허물을 벗을 때마다 강해진다.',
+      id: 'sunscale', name: '태양비늘 부족', short: '태양비늘', rarity: 'named', emblem: '☼', ranks: ['족장', '부족민'], motto: '허물을 벗을 때마다 강해진다.',
       desc: '늪지 바위에서 해를 쬐는 비늘 종족 부족. 리자드맨과 코볼트가 함께 산다.',
       cond: { races: ['lizardfolk', 'kobold'], minStar: 2 },
       chance: 0.6,
@@ -170,7 +170,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { wildlands: 2 }, colors: ['#5a7a2a', '#e8c84a'],
     },
     {
-      id: 'drakeblood', name: '용혈 가문', short: '용혈', surname: '드라켄', rarity: 'legendary', emblem: '♞', motto: '우리는 무릎 꿇지 않는다. 날개가 접힐 뿐.',
+      id: 'drakeblood', name: '용혈 가문', short: '용혈', surname: '드라켄', rarity: 'legendary', emblem: '♞', ranks: ['용혈 장자', '방계'], motto: '우리는 무릎 꿇지 않는다. 날개가 접힐 뿐.',
       desc: '마지막 용의 직계라 주장하는 용인족 명가. 그 주장을 반박한 자는 모두 불탔다.',
       cond: { races: ['dragonkin'], minStar: 4 },
       chance: 1,
@@ -178,7 +178,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { primal: 2, horde: 1, kingdom: -1 }, colors: ['#5a0f1a', '#ffb04a'],
     },
     {
-      id: 'labyrinth', name: '미궁의 뿔', short: '미궁', rarity: 'named', emblem: '⌘', motto: '길을 잃은 건 너다.',
+      id: 'labyrinth', name: '미궁의 뿔', short: '미궁', rarity: 'named', emblem: '⌘', ranks: ['미궁지기', '길잃은 자'], motto: '길을 잃은 건 너다.',
       desc: '무너진 미궁을 지키는 미노타우로스 전사단.',
       cond: { races: ['minotaur'], minStar: 3 },
       chance: 0.8,
@@ -186,7 +186,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { horde: 2 }, colors: ['#4a2a1a', '#c9a36b'],
     },
     {
-      id: 'gutfeast', name: '대식가 연회', short: '연회', rarity: 'named', emblem: '♨', motto: '먹고, 마시고, 부순다.',
+      id: 'gutfeast', name: '대식가 연회', short: '연회', rarity: 'named', emblem: '♨', ranks: ['대식가', '손님'], motto: '먹고, 마시고, 부순다.',
       desc: '끝나지 않는 잔치를 여는 거구들의 모임. 회비는 고기로 낸다.',
       cond: { races: ['halfogre', 'orc', 'troll', 'bearkin', 'minotaur'], minStar: 2, classes: ['drunkard', 'butcher', 'berserker', 'warrior'] },
       chance: 0.6,
@@ -194,7 +194,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { horde: 2, underworld: 1 }, colors: ['#7a3a1a', '#e0b060'],
     },
     {
-      id: 'gobmarket', name: '고블린 암시장', short: '암시장', rarity: 'named', emblem: '¤', motto: '훔친 게 아니라 주운 거야.',
+      id: 'gobmarket', name: '고블린 암시장', short: '암시장', rarity: 'named', emblem: '¤', ranks: ['큰손', '심부름꾼'], motto: '훔친 게 아니라 주운 거야.',
       desc: '하수도 깊은 곳에 열리는 고블린과 코볼트의 시장. 없는 게 없고, 출처는 없다.',
       cond: { races: ['goblin', 'kobold'], minStar: 2, classes: ['scavenger', 'conartist', 'rogue', 'ratcatcher', 'tinker', 'pyromaniac'] },
       chance: 0.7,
@@ -202,7 +202,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 3, guild: 1 }, colors: ['#3a4a2a', '#d9b45a'],
     },
     {
-      id: 'tidesong', name: '조수의 합창단', short: '합창단', rarity: 'named', emblem: '≈', motto: '파도가 부르면 대답하라.',
+      id: 'tidesong', name: '조수의 합창단', short: '합창단', rarity: 'named', emblem: '≈', ranks: ['수석 가수', '합창 단원'], motto: '파도가 부르면 대답하라.',
       desc: '인어와 딥원이 함께 노래하는 바다의 성가대. 그 노래에 배가 가라앉곤 했다.',
       cond: { races: ['merfolk', 'deepone'], minStar: 3, classes: ['bard', 'priest', 'abyssal', 'witch', 'mourner'] },
       chance: 0.8,
@@ -210,7 +210,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { abyss: 2, primal: 1 }, colors: ['#1a5a7a', '#9ae0e8'],
     },
     {
-      id: 'revelry', name: '끝없는 주연', short: '주연', rarity: 'named', emblem: '♪', motto: '내일은 없다. 오늘도 거의 없다.',
+      id: 'revelry', name: '끝없는 주연', short: '주연', rarity: 'named', emblem: '♪', ranks: ['연회장', '술 시중'], motto: '내일은 없다. 오늘도 거의 없다.',
       desc: '세상이 끝났다는 소식에 오히려 잔치를 연 자들. 아직도 끝나지 않았다.',
       cond: { races: ['satyr', 'dokkaebi', 'human', 'halfling', 'pixie'], minStar: 2, classes: ['bard', 'drunkard', 'jester'] },
       chance: 0.6,
@@ -218,7 +218,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 1, wildlands: 1 }, colors: ['#7a2a6a', '#f2c94c'],
     },
     {
-      id: 'gold_club', name: '금방망이 도깨비패', short: '도깨비패', rarity: 'named', emblem: '♣', motto: '금 나와라, 뚝딱.',
+      id: 'gold_club', name: '금방망이 도깨비패', short: '도깨비패', rarity: 'named', emblem: '♣', ranks: ['형님', '아우'], motto: '금 나와라, 뚝딱.',
       desc: '방망이 하나로 부자가 됐다는 도깨비들의 패거리. 씨름에서 지면 방망이를 내놓는다.',
       cond: { races: ['dokkaebi'], minStar: 3 },
       chance: 0.9,
@@ -226,7 +226,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 1, guild: 1, primal: 1 }, colors: ['#2a4a8a', '#ffd84a'],
     },
     {
-      id: 'ember_choir', name: '불씨 성가대', short: '불씨', rarity: 'named', emblem: '♠', motto: '모든 것은 결국 재가 된다.',
+      id: 'ember_choir', name: '불씨 성가대', short: '불씨', rarity: 'named', emblem: '♠', ranks: ['성가대장', '불씨'], motto: '모든 것은 결국 재가 된다.',
       desc: '타오르는 노래를 부르는 불의 정령들. 박수 대신 불꽃이 튄다.',
       cond: { races: ['fire_spirit'], minStar: 3 },
       chance: 0.9,
@@ -234,7 +234,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { primal: 3 }, colors: ['#7a1a0a', '#ffb04a'],
     },
     {
-      id: 'primal_court', name: '원소 법정', short: '원소법정', rarity: 'legendary', emblem: '❖', motto: '대지와 바다, 불과 바람의 이름으로.',
+      id: 'primal_court', name: '원소 법정', short: '원소법정', rarity: 'legendary', emblem: '❖', ranks: ['원로 판관', '배심 정령'], motto: '대지와 바다, 불과 바람의 이름으로.',
       desc: '네 원소의 정령 중 가장 오래된 자들로 이루어진 법정. 세계핵의 재판관을 자처한다.',
       cond: { races: ['fire_spirit', 'water_spirit', 'earth_spirit', 'wind_spirit'], minStar: 5 },
       chance: 1,
@@ -242,7 +242,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { primal: 3 }, colors: ['#2a2a3a', '#e8e8f0'],
     },
     {
-      id: 'oldgrove', name: '고목의 뿌리', short: '고목', rarity: 'named', emblem: '♣', motto: '천 년을 기다렸다. 조금 더 기다리지.',
+      id: 'oldgrove', name: '고목의 뿌리', short: '고목', rarity: 'named', emblem: '♣', ranks: ['고목', '새순'], motto: '천 년을 기다렸다. 조금 더 기다리지.',
       desc: '가장 오래된 나무 아래 모인 숲의 수호자들. 회의 한 번에 계절이 바뀐다.',
       cond: { races: ['dryad', 'mushfolk', 'elf'], minStar: 3, classes: ['druid', 'geomancer', 'shaman', 'priest'] },
       chance: 0.8,
@@ -250,7 +250,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { silverwood: 3 }, colors: ['#3a5a2a', '#c9e07a'],
     },
     {
-      id: 'sporecult', name: '포자 교단', short: '포자', rarity: 'named', emblem: '⁂', motto: '모두가 하나의 균사로.',
+      id: 'sporecult', name: '포자 교단', short: '포자', rarity: 'named', emblem: '⁂', ranks: ['대포자', '포자'], motto: '모두가 하나의 균사로.',
       desc: '모든 생명이 결국 버섯의 양분이 된다고 믿는 버섯족 교단. 장례식이 무척 경쾌하다.',
       cond: { races: ['mushfolk'], minStar: 2 },
       chance: 0.6,
@@ -258,7 +258,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 1, silverwood: 1 }, colors: ['#8a4a6a', '#f0e0c0'],
     },
     {
-      id: 'thistledown', name: '엉겅퀴 요정궁', short: '요정궁', rarity: 'named', emblem: '✾', motto: '작다고 얕보면 눈을 찌른다.',
+      id: 'thistledown', name: '엉겅퀴 요정궁', short: '요정궁', rarity: 'named', emblem: '✾', ranks: ['여왕', '시종'], motto: '작다고 얕보면 눈을 찌른다.',
       desc: '엉겅퀴 꽃 속에 궁전을 지은 픽시들의 궁정.',
       cond: { races: ['pixie'], minStar: 3 },
       chance: 0.9,
@@ -266,7 +266,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { silverwood: 2, primal: 1 }, colors: ['#8a4fc7', '#ffd0f0'],
     },
     {
-      id: 'clockwork', name: '시계탑 기사단', short: '시계탑', rarity: 'named', emblem: '⌚', motto: '정해진 시각에, 정해진 일을.',
+      id: 'clockwork', name: '시계탑 기사단', short: '시계탑', rarity: 'named', emblem: '⌚', ranks: ['기사단장', '신병'], motto: '정해진 시각에, 정해진 일을.',
       desc: '옛 왕국의 시계탑을 지키던 자동인형 기사들. 주인이 죽은 지금도 정각마다 경례한다.',
       cond: { races: ['automaton'], minStar: 3 },
       chance: 0.9,
@@ -274,7 +274,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { ironhold: 2, kingdom: 1 }, colors: ['#5a4a2a', '#d8b45a'],
     },
     {
-      id: 'stitched', name: '꿰맨 자들의 연대', short: '꿰맨연대', rarity: 'named', emblem: '✂', motto: '한 번 죽어봤다. 별것 아니더라.',
+      id: 'stitched', name: '꿰맨 자들의 연대', short: '꿰맨연대', rarity: 'named', emblem: '✂', ranks: ['선배 망자', '새 망자'], motto: '한 번 죽어봤다. 별것 아니더라.',
       desc: '무덤에서 돌아온 자들의 상호부조 모임. 서로의 실밥을 꿰매 준다.',
       cond: { races: ['revenant'], minStar: 2 },
       chance: 0.7,
@@ -282,7 +282,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { nightcourt: 1, underworld: 2 }, colors: ['#4a5a4a', '#c0a0a0'],
     },
     {
-      id: 'umbral', name: '반그림자 회랑', short: '반그림자', rarity: 'named', emblem: '◐', motto: '빛이 있는 곳에 우리가 있다. 바로 뒤에.',
+      id: 'umbral', name: '반그림자 회랑', short: '반그림자', rarity: 'named', emblem: '◐', ranks: ['그림자', '꼬리'], motto: '빛이 있는 곳에 우리가 있다. 바로 뒤에.',
       desc: '그림자족과 다크엘프가 섞인 첩보 조직. 회랑의 끝을 본 자는 없다.',
       cond: { races: ['shade', 'darkelf'], minStar: 4, classes: ['assassin', 'rogue', 'puppeteer', 'witch'] },
       chance: 0.9,
@@ -291,7 +291,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
     },
     // ================= 직업 집단 =================
     {
-      id: 'sweetdream', name: '달콤한 꿈 조합', short: '단꿈', rarity: 'named', emblem: '❂', motto: '아프지 않아. 이제 아무것도.',
+      id: 'sweetdream', name: '달콤한 꿈 조합', short: '단꿈', rarity: 'named', emblem: '❂', ranks: ['조합장', '손님'], motto: '아프지 않아. 이제 아무것도.',
       desc: '폐허에서 진통제를 만드는 자들의 조합. 진통제가 무엇으로 만들어지는지는 비밀이다.',
       cond: { minStar: 2, classes: ['junkie', 'alchemist', 'plaguedoc'], anyTraits: ['addict', 'drunkard', 'hothead', 'curse_whispers', 'insomniac'] },
       chance: 0.8,
@@ -299,7 +299,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 3, radiance: -1 }, colors: ['#5a2a6a', '#f0a0d0'],
     },
     {
-      id: 'red_ledger', name: '붉은 장부 상회', short: '붉은장부', surname: '레저', rarity: 'named', emblem: '₿', motto: '빚은 죽어도 남는다.',
+      id: 'red_ledger', name: '붉은 장부 상회', short: '붉은장부', surname: '레저', rarity: 'named', emblem: '₿', ranks: ['수금 대장', '수금원'], motto: '빚은 죽어도 남는다.',
       desc: '대붕괴 이전의 차용증까지 들고 다니는 사채 상회. 망자의 빚은 유족이, 유족이 없으면 너희가 갚는다.',
       cond: { minStar: 3, classes: ['loanshark', 'conartist'], noTraits: ['devout', 'oath'] },
       chance: 0.9,
@@ -307,7 +307,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { guild: 2, underworld: 2, kingdom: -1 }, colors: ['#5a0a0a', '#e2b84a'],
     },
     {
-      id: 'beak_society', name: '부리가면 학회', short: '부리학회', rarity: 'named', emblem: '⚕', motto: '병은 치료한다. 환자는 장담 못 한다.',
+      id: 'beak_society', name: '부리가면 학회', short: '부리학회', rarity: 'named', emblem: '⚕', ranks: ['교수', '조교'], motto: '병은 치료한다. 환자는 장담 못 한다.',
       desc: '역병의 시대를 견뎌 낸 의사들의 학회. 가면 아래의 얼굴을 서로도 모른다.',
       cond: { minStar: 2, classes: ['plaguedoc', 'alchemist', 'priest'], noTraits: ['zealot'] },
       chance: 0.7,
@@ -315,7 +315,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 1, guild: 1 }, colors: ['#1a1a1a', '#c9a36b'],
     },
     {
-      id: 'last_laugh', name: '마지막 웃음 극단', short: '극단', rarity: 'named', emblem: '☺', motto: '관객이 죽어도 공연은 계속된다.',
+      id: 'last_laugh', name: '마지막 웃음 극단', short: '극단', rarity: 'named', emblem: '☺', ranks: ['단장', '단원'], motto: '관객이 죽어도 공연은 계속된다.',
       desc: '무너진 극장을 떠도는 유랑 극단. 무대는 전장, 객석은 무덤.',
       cond: { minStar: 2, classes: ['jester', 'bard', 'puppeteer', 'bladedancer'] },
       chance: 0.7,
@@ -323,7 +323,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { guild: 1, underworld: 1 }, colors: ['#2a1a3a', '#ff6a8a'],
     },
     {
-      id: 'gravewardens', name: '묘지기 형제회', short: '묘지기', rarity: 'named', emblem: '✝', motto: '누구든 결국 우리 손님이다.',
+      id: 'gravewardens', name: '묘지기 형제회', short: '묘지기', rarity: 'named', emblem: '✝', ranks: ['큰 무덤지기', '삽질 견습'], motto: '누구든 결국 우리 손님이다.',
       desc: '무덤을 파고, 덮고, 지키는 형제회. 망자가 일어나면 다시 눕히는 것도 그들의 일이다.',
       cond: { minStar: 2, classes: ['gravedigger', 'mourner', 'exorcist', 'necromancer'] },
       chance: 0.7,
@@ -331,7 +331,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { nightcourt: 1, radiance: 1 }, colors: ['#2a2a2a', '#9a9aa4'],
     },
     {
-      id: 'headsman_guild', name: '망나니 조합', short: '망나니', rarity: 'named', emblem: '⚒', motto: '목은 하나, 실수는 없다.',
+      id: 'headsman_guild', name: '망나니 조합', short: '망나니', rarity: 'named', emblem: '⚒', ranks: ['큰 망나니', '견습 망나니'], motto: '목은 하나, 실수는 없다.',
       desc: '처형과 도축, 고문을 업으로 삼는 이들의 조합. 일감은 언제나 있다.',
       cond: { minStar: 3, classes: ['executioner', 'butcher', 'torturer'] },
       chance: 0.8,
@@ -339,7 +339,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 2, kingdom: 1 }, colors: ['#1a1a1a', '#8a1a1a'],
     },
     {
-      id: 'ashen_torch', name: '잿불 방화단', short: '잿불', rarity: 'named', emblem: '♨', motto: '어둠이 무섭다고? 태우면 된다.',
+      id: 'ashen_torch', name: '잿불 방화단', short: '잿불', rarity: 'named', emblem: '♨', ranks: ['불지기', '불씨'], motto: '어둠이 무섭다고? 태우면 된다.',
       desc: '불을 지르는 것을 예술이라 부르는 자들. 거점 근처에서는 활동을 자제하기로 약속했다.',
       cond: { minStar: 2, classes: ['pyromaniac', 'elementalist'] },
       chance: 0.7,
@@ -347,7 +347,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { primal: 1, underworld: 1, silverwood: -2 }, colors: ['#3a1a0a', '#ff7a2a'],
     },
     {
-      id: 'rat_kings', name: '쥐왕의 궁정', short: '쥐왕', rarity: 'named', emblem: '♔', motto: '왕관은 쓰레기 더미 위에서도 빛난다.',
+      id: 'rat_kings', name: '쥐왕의 궁정', short: '쥐왕', rarity: 'named', emblem: '♔', ranks: ['궁정 대신', '쥐잡이 졸병'], motto: '왕관은 쓰레기 더미 위에서도 빛난다.',
       desc: '하수도의 왕을 섬기는 쥐잡이와 넝마주이들. 왕은 쥐다. 진짜로.',
       cond: { minStar: 3, classes: ['ratcatcher', 'scavenger'] },
       chance: 0.8,
@@ -355,7 +355,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 3 }, colors: ['#3a3a2a', '#c0c040'],
     },
     {
-      id: 'doomsayers', name: '종말의 예언자들', short: '예언자', rarity: 'named', emblem: '☄', motto: '끝이 온다. 헌금은 미리.',
+      id: 'doomsayers', name: '종말의 예언자들', short: '예언자', rarity: 'named', emblem: '☄', ranks: ['대예언자', '신도'], motto: '끝이 온다. 헌금은 미리.',
       desc: '종말을 예언했고, 실제로 왔다. 그래서 다음 종말도 예언 중이다.',
       cond: { minStar: 3, classes: ['cultist', 'witch', 'warlock', 'astrologer'], noTraits: ['devout'] },
       chance: 0.8,
@@ -363,7 +363,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { underworld: 1, infernal: 1, radiance: -2 }, colors: ['#3a0a2a', '#d0a040'],
     },
     {
-      id: 'iron_powder', name: '화약 연대', short: '화약', rarity: 'named', emblem: '✷', motto: '말보다 총성이 빠르다.',
+      id: 'iron_powder', name: '화약 연대', short: '화약', rarity: 'named', emblem: '✷', ranks: ['포병장', '장전수'], motto: '말보다 총성이 빠르다.',
       desc: '옛 왕국 포병대의 생존자들. 귀가 조금 어둡다.',
       cond: { minStar: 2, classes: ['gunner', 'tinker'] },
       chance: 0.7,
@@ -371,7 +371,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { kingdom: 1, ironhold: 1 }, colors: ['#2a3a5a', '#c0c8d8'],
     },
     {
-      id: 'waltz', name: '칼날 무도회', short: '무도회', rarity: 'named', emblem: '❧', motto: '한 박자 늦으면, 목이 날아간다.',
+      id: 'waltz', name: '칼날 무도회', short: '무도회', rarity: 'named', emblem: '❧', ranks: ['수석 무희', '신입'], motto: '한 박자 늦으면, 목이 날아간다.',
       desc: '귀족의 무도회장에서 시작된 검술 결사. 지금은 폐허의 광장에서 춤춘다.',
       cond: { minStar: 3, classes: ['bladedancer', 'duelist', 'swordsman'] },
       chance: 0.8,
@@ -379,7 +379,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { kingdom: 1, guild: 1 }, colors: ['#5a1a3a', '#f2e0c0'],
     },
     {
-      id: 'menagerie', name: '떠돌이 동물원', short: '동물원', rarity: 'named', emblem: '❦', motto: '누가 조련사고 누가 짐승인지는 묻지 마라.',
+      id: 'menagerie', name: '떠돌이 동물원', short: '동물원', rarity: 'named', emblem: '❦', ranks: ['원장', '사육사'], motto: '누가 조련사고 누가 짐승인지는 묻지 마라.',
       desc: '우리가 부서진 동물원에서 함께 탈출한 조련사와 짐승들.',
       cond: { minStar: 2, classes: ['beastmaster', 'hunter', 'druid', 'ratcatcher'] },
       chance: 0.6,
@@ -387,7 +387,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { wildlands: 2 }, colors: ['#5a4a1a', '#a0c060'],
     },
     {
-      id: 'mana_blade', name: '마검의 탑', short: '마검탑', rarity: 'named', emblem: '⚔', motto: '검으로 외우고, 주문으로 벤다.',
+      id: 'mana_blade', name: '마검의 탑', short: '마검탑', rarity: 'named', emblem: '⚔', ranks: ['탑주', '수련생'], motto: '검으로 외우고, 주문으로 벤다.',
       desc: '검술과 마법을 함께 가르치는 탑. 졸업 시험은 탑에서 뛰어내리는 것이다.',
       cond: { minStar: 3, classes: ['spellblade', 'mage', 'swordsman'] },
       chance: 0.8,
@@ -395,7 +395,7 @@ export const HOUSES: Record<string, HouseDef> = Object.fromEntries(
       affinity: { kingdom: 1 }, colors: ['#2a2a6a', '#9ab0ff'],
     },
     {
-      id: 'leyline', name: '지맥 측량단', short: '측량단', rarity: 'named', emblem: '⌖', motto: '땅은 거짓말하지 않는다.',
+      id: 'leyline', name: '지맥 측량단', short: '측량단', rarity: 'named', emblem: '⌖', ranks: ['측량관', '측량 조수'], motto: '땅은 거짓말하지 않는다.',
       desc: '무너진 세계의 지맥을 다시 측량하는 학자들. 세계핵의 위치를 처음 짚어 낸 것도 그들이다.',
       cond: { minStar: 3, classes: ['geomancer', 'runesmith', 'astrologer'] },
       chance: 0.8,

@@ -307,3 +307,14 @@ img.relic { background: #1a1524; border: 1px solid #050308; box-shadow: inset 0 
 .core { color: #7fe3ff; }
 .chip.core { color: #d0f4ff; background: #10303c; box-shadow: inset 0 0 0 1px #3a9ab8; }
 h2.core { color: #7fe3ff; }
+
+/* 관계 */
+.rel { display: grid; grid-template-columns: 70px 74px 1fr; align-items: center; gap: 6px; font-size: 12px; margin: 3px 0; }
+.rel .rn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.tier-sworn { background: #3a2a10; color: #ffd45a; border-color: #8a6a20; }
+.chip.tier-comrade { background: #173a22; color: #8ae0a0; border-color: #2f6a3a; }
+.chip.tier-neutral { color: #a8a0b8; }
+.chip.tier-rival { background: #3a2a14; color: #ffb06a; border-color: #7a4a20; }
+.chip.tier-nemesis { background: #3a1018; color: #ff7a8a; border-color: #7a2030; }
+.quote { font-size: 12px; font-style: italic; color: #d8c8a8; text-align: center; margin: 4px 0; line-height: 1.5; }
+.talk { color: #f2e6c8; padding-left: 10px; border-left: 2px solid #6a5a8a; font-style: italic; }

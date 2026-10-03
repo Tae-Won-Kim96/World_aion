@@ -15,9 +15,11 @@ import { pull, PULL10_COST, PULL_COST, ROSTER_CAP, type Pity } from './gacha';
 import { generateCharacter } from './gen/character';
 import { generateItem, type ItemGenOpts, itemValue } from './gen/item';
 import { freshSeed, mixSeed, Rng } from './rng';
-import { computeEffects, computeStats, expToNext, fullName, levelCap } from './stats';
+import { computeEffects, computeStats, expToNext, fullName, levelCap, partySynergy } from './stats';
 import type { Character, FactionId, GearSlot, Grave, Item, Star } from './types';
 import { applyBind, canBind, DORMANT_RUNS, lordExpFromBind, lordExpToNext, bindCost, bindSlots } from './bond';
+import { campTalk } from './dialogue';
+import { baseBond, type Bond, bondMorale, bondScore, clampBond, pairKey, pushNote, tierOf, TIER_NAMES } from './relations';
 
 export const SAVE_KEY = 'world_aion_save_v1';
 export const PARTY_SIZE = 4;
@@ -43,6 +45,7 @@ export interface SaveData {
   news: { t: number; text: string }[];
   stats: { deaths: number; turned: number; victories: number; runs: number; recruited: number };
   stash: Item[];
+  bonds: Record<string, Bond>;
 }
 
 export interface BattleResult {
@@ -53,6 +56,7 @@ export interface BattleResult {
   cheatDeathUsed: string[];
   bonusEssence?: number;
   bonusGold?: number;
+  adjacent?: [string, string][]; // 전투 종료 시 붙어 선 동료 쌍
 }
 
 export interface RewardSummary {
@@ -119,12 +123,14 @@ export function newGame(seed = freshSeed()): SaveData {
     news: [{ t: Date.now(), text: '대붕괴로부터 백 년. 지휘관이 무너진 성채에서 세계핵의 조각을 품고 눈을 떴다. 네 명의 생존자가 불빛을 보고 찾아왔다.' }],
     stats: { deaths: 0, turned: 0, victories: 0, runs: 0, recruited: 0 },
     stash: [],
+    bonds: {},
   };
 }
 
 /** 예전 저장 데이터에 새 필드를 채운다 */
 export function migrate(d: SaveData): SaveData {
   d.stash ??= [];
+  d.bonds ??= {};
   for (const f of FACTION_IDS) d.rep[f] ??= 0;
   d.lord.learned ??= [...LORD_START_SKILLS];
   d.lord.equipped ??= [...LORD_START_SKILLS];
@@ -407,6 +413,7 @@ export class Store {
         }
         run.torch = Math.min(100, run.torch + 15);
         lines.push('모닥불에서 횃불을 손질했다 (+15).');
+        lines.push(...this.campfire(party, rng));
         run.notice = { title: '야영지', lines };
         break;
       }
@@ -646,6 +653,86 @@ export class Store {
     this.save();
   }
 
+  // ------------------------------------------------------------ 관계
+  bondOf(a: string, b: string): Bond {
+    const k = pairKey(a, b);
+    return (this.s.bonds[k] ??= { delta: 0, battles: 0, talks: 0, notes: [] });
+  }
+
+  /** 현재 관계 점수 (기본 상성 + 쌓인 경험) */
+  bondScoreOf(a: Character, b: Character): number {
+    return bondScore(a, b, this.s.bonds[pairKey(a.id, b.id)]);
+  }
+
+  adjustBond(a: Character, b: Character, delta: number, note?: string): { before: number; after: number } {
+    const bond = this.bondOf(a.id, b.id);
+    const before = bondScore(a, b, bond);
+    bond.delta = clampBond(bond.delta + delta);
+    if (note) pushNote(bond, note);
+    return { before, after: bondScore(a, b, bond) };
+  }
+
+  /** 전투에 넘길 관계표 */
+  partyBonds(chars: Character[]): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (let i = 0; i < chars.length; i++) for (let j = i + 1; j < chars.length; j++) out[pairKey(chars[i].id, chars[j].id)] = this.bondScoreOf(chars[i], chars[j]);
+    return out;
+  }
+
+  /** 사기 = 진영 상성 + 동료 관계 (-3 ~ +3) */
+  partyMorale(chars: Character[]): number {
+    const syn = partySynergy(chars).morale;
+    return Math.max(-3, Math.min(3, syn + bondMorale(Object.values(this.partyBonds(chars)))));
+  }
+
+  /** 한 동료가 다른 동료들과 맺은 관계 (점수 절댓값 순) */
+  relationsOf(ch: Character): { other: Character; score: number; reasons: string[]; bond?: Bond }[] {
+    const others = [this.s.lordChar, ...this.s.roster].filter((o) => o.id !== ch.id);
+    return others
+      .map((o) => ({ other: o, score: this.bondScoreOf(ch, o), reasons: baseBond(ch, o).reasons, bond: this.s.bonds[pairKey(ch.id, o.id)] }))
+      .sort((x, y) => Math.abs(y.score) - Math.abs(x.score));
+  }
+
+  /** 승리 후: 함께 싸운 동료들은 가까워진다. 붙어 싸웠다면 더. */
+  private growBonds(party: Character[], res: BattleResult, summary: RewardSummary): void {
+    const adj = new Set((res.adjacent ?? []).map(([a, b]) => pairKey(a, b)));
+    for (let i = 0; i < party.length; i++) {
+      for (let j = i + 1; j < party.length; j++) {
+        const [a, b] = [party[i], party[j]];
+        const bond = this.bondOf(a.id, b.id);
+        bond.battles++;
+        const near = adj.has(pairKey(a.id, b.id));
+        const tierBefore = tierOf(bondScore(a, b, bond));
+        const gain = (tierBefore === 'rival' || tierBefore === 'nemesis' ? 1 : 2) + (near ? 2 : 0);
+        const r = this.adjustBond(a, b, gain);
+        const tierAfter = tierOf(r.after);
+        if (tierAfter !== tierBefore) summary.lines.push(`${a.given}와(과) ${b.given}의 관계가 「${TIER_NAMES[tierAfter]}」(으)로 바뀌었다.`);
+      }
+    }
+  }
+
+  /** 야영지 모닥불: 한두 쌍이 이야기를 나눈다 */
+  private campfire(party: Character[], rng: Rng): string[] {
+    if (party.length < 2) return [];
+    const pairs: [Character, Character][] = [];
+    for (let i = 0; i < party.length; i++) for (let j = i + 1; j < party.length; j++) pairs.push([party[i], party[j]]);
+    const n = Math.min(pairs.length, rng.chance(0.4) ? 2 : 1);
+    const out: string[] = ['— 모닥불 곁에서 —'];
+    for (let k = 0; k < n; k++) {
+      const [a, b] = rng.weighted(pairs, ([x, y]) => 1 + 3 / (1 + (this.s.bonds[pairKey(x.id, y.id)]?.talks ?? 0)));
+      pairs.splice(pairs.findIndex((p) => p[0] === a && p[1] === b), 1);
+      const talk = campTalk(rng, a, b, this.bondScoreOf(a, b));
+      const bond = this.bondOf(a.id, b.id);
+      bond.talks++;
+      const r = this.adjustBond(a, b, talk.delta, talk.lines[talk.lines.length - 1].slice(0, 40));
+      out.push(...talk.lines);
+      const tier = tierOf(r.after);
+      const change = tierOf(r.before) !== tier ? ` → 「${TIER_NAMES[tier]}」` : '';
+      out.push(`(${a.given}·${b.given} 관계 ${talk.delta >= 0 ? '+' : ''}${talk.delta}${change})`);
+    }
+    return out;
+  }
+
   // ------------------------------------------------------------ 전투 결과
   battleFinished(res: BattleResult): RewardSummary {
     const run = this.s.run!;
@@ -678,6 +765,7 @@ export class Store {
     }
 
     const party = this.activeParty();
+    this.growBonds(party, res, summary);
     let gold = 0;
     let exp = 0;
     for (const e of spec.enemies) {
@@ -756,6 +844,11 @@ export class Store {
       line = `${fullName(c)}의 몸이 빛 조각으로 흩어졌다… 세계핵에서 다시 형체를 갖출 것이다.`;
     } else {
       run.fallen.push({ id: c.id, vampire: false, name: fullName(c) });
+      for (const o of this.partyChars()) {
+        if (o.id === c.id) continue;
+        const b = this.bondOf(o.id, c.id);
+        if (tierOf(bondScore(o, c, b)) === 'comrade' || tierOf(bondScore(o, c, b)) === 'sworn') pushNote(b, `${at}에서 ${c.given}의 마지막을 지켜보았다`);
+      }
       this.bury(c, `${by}에게 쓰러짐`, at);
       line = `${fullName(c)}이(가) 영원히 잠들었다. 묘지에 이름이 새겨진다.`;
     }
