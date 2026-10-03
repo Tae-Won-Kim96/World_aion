@@ -27,10 +27,11 @@ export type RaceId =
   // 요정·정령·기타
   | 'merfolk' | 'satyr' | 'dokkaebi' | 'fire_spirit' | 'water_spirit' | 'earth_spirit' | 'wind_spirit'
   | 'dryad' | 'mushfolk' | 'pixie' | 'automaton' | 'revenant' | 'shade'
+  | 'insectkin' | 'frogfolk' | 'gargoyle' | 'lamia' | 'yeti' | 'scarecrow' | 'cyclops' | 'ghost' | 'salamander'
   // 지휘관 전용
   | 'corebearer'
   // 적 전용
-  | 'skeleton' | 'ghoul' | 'goblin' | 'wraith' | 'ratkin';
+  | 'skeleton' | 'ghoul' | 'goblin' | 'wraith' | 'ratkin' | 'slime' | 'mimic' | 'voidspawn';
 
 export type Role = 'tank' | 'melee' | 'ranged' | 'caster' | 'healer' | 'support';
 
@@ -151,15 +152,20 @@ export interface RaceLook {
   hairColors?: string[];     // 머리색 후보(없으면 공용)
   eyeColors?: string[];
   ears?: 'human' | 'pointy' | 'long' | 'fin' | 'beast' | 'none' | 'cat' | 'fox' | 'rabbit' | 'bear' | 'wolf';
-  horns?: 'none' | 'small' | 'curl' | 'large' | 'bull' | 'branch';
-  wings?: 'none' | 'feather' | 'bat' | 'small_bat' | 'butterfly' | 'bird';
+  horns?: 'none' | 'small' | 'curl' | 'large' | 'bull' | 'branch' | 'antennae';
+  wings?: 'none' | 'feather' | 'bat' | 'small_bat' | 'butterfly' | 'bird' | 'insect';
   halo?: boolean;
   tail?: 'none' | 'devil' | 'beast' | 'fish' | 'fox' | 'cat' | 'rabbit' | 'lizard' | 'bull';
   crest?: 'mushroom' | 'flame' | 'leaf' | 'crystal' | 'wisp' | 'feathers'; // 머리카락 대신
   skinPattern?: 'scales' | 'bark' | 'stone' | 'metal' | 'stitches' | 'spots';
   snout?: boolean;
   beak?: boolean;
-  legs?: 'fishtail' | 'hooves';
+  legs?: 'fishtail' | 'hooves' | 'serpent' | 'ghost';
+  oneEye?: boolean;          // 외눈
+  manyEyes?: boolean;        // 여러 개의 눈
+  frogEyes?: boolean;        // 머리 위로 솟은 눈
+  chestHead?: boolean;       // 상자 머리 (미믹)
+  forceEye?: 'normal' | 'big' | 'sleepy' | 'sharp' | 'happy' | 'dot' | 'slit';
   translucent?: boolean;
   aura?: string;             // 외곽선 발광색
   slitEyes?: boolean;

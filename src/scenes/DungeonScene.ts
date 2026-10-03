@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { drawDungeonBackdrop } from '../art/backdrops';
 import { ensureBufTexture } from '../art/registry';
-import { DUNGEONS } from '../core/data/dungeons';
+import { dungeonOf } from '../core/gen/dungeon';
 
 export class DungeonScene extends Phaser.Scene {
   constructor() {
@@ -9,8 +9,8 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   create(data: { dungeon?: string }): void {
-    const d = DUNGEONS[data.dungeon ?? 'necropolis'];
-    const key = ensureBufTexture(this.textures, `dg_bg_${d.id}`, () => drawDungeonBackdrop(d.theme.sky[0], d.theme.sky[1], d.theme.floor[0], d.theme.accent));
+    const d = dungeonOf(data.dungeon ?? 'necropolis');
+    const key = ensureBufTexture(this.textures, `dg_bg_${d.id}`, () => drawDungeonBackdrop(d.theme.sky[0], d.theme.sky[1], d.theme.floor[0], d.theme.accent, d.risk * 7 + 3, d.theme.style));
     this.add.image(0, 0, key).setOrigin(0).setScale(4);
     const accent = Phaser.Display.Color.HexStringToColor(d.theme.accent).color;
     for (let i = 0; i < 24; i++) {

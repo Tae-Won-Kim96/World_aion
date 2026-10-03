@@ -232,6 +232,10 @@ hr.sep { border: none; border-top: 2px dashed var(--line); margin: 8px 0; }
 .dcard { flex: 1; padding: 10px; background: var(--panel2); border: 2px solid #050308; box-shadow: inset 0 0 0 2px var(--line); cursor: pointer; }
 .dcard.sel { box-shadow: inset 0 0 0 2px var(--gold); }
 .dcard.locked { opacity: .45; cursor: not-allowed; }
+.dungeons.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.dungeons.board .dcard { padding: 8px; }
+.dcard .chip { font-size: 10px; padding: 1px 5px; }
+.ddetail { padding: 6px 10px; background: #120e1a; border: 1px solid #050308; box-shadow: inset 0 0 0 1px var(--line); line-height: 1.6; }
 .party-slots { display: flex; gap: 8px; }
 .slot { width: 120px; height: 150px; background: #120e1a; border: 2px dashed var(--line2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; }
 .slot.filled { border-style: solid; border-color: #050308; box-shadow: inset 0 0 0 2px var(--line2); }

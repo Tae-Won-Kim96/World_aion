@@ -1,7 +1,12 @@
 import { lookFromCharacter } from '../art/look';
 import { spriteEl } from '../art/registry';
 import { CLASSES } from '../core/data/classes';
-import { DUNGEONS } from '../core/data/dungeons';
+import { BIOMES } from '../core/data/biomes';
+import { DUNGEON_MODS } from '../core/data/dungeon_mods';
+import { DUNGEONS, type DungeonDef, levelBase } from '../core/data/dungeons';
+import { ENEMIES } from '../core/data/enemies';
+import { WARBANDS } from '../core/data/warbands';
+import { dungeonFx, dungeonOf } from '../core/gen/dungeon';
 import { factionRelation, FACTIONS, FACTION_IDS } from '../core/data/factions';
 import { PITY5, PULL10_COST, PULL_COST, ROSTER_CAP } from '../core/gacha';
 import { RARITY_COLORS, SLOT_NAMES } from '../core/data/items';
@@ -16,6 +21,8 @@ import { openFacilities } from './facilities';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
 import { charCard, charDetail, houseChip, itemRow, raceClassLine, starsEl } from './widgets';
 import { app } from './app';
+
+const DEV = new URLSearchParams(location.search).has('dev');
 
 function resBar(): HTMLElement {
   const s = store.s;
@@ -325,7 +332,22 @@ function openSettings(): void {
         app.route();
       }, true),
     }, '새 게임으로 초기화'),
+    DEV ? devPanel() : null,
   ));
+}
+
+/** 주소 끝에 ?dev 를 붙이면 보이는 테스트용 버튼들 */
+function devPanel(): HTMLElement {
+  const btn = (label: string, kind: Parameters<typeof store.devGrant>[0]) => h('button', {
+    class: 'btn small', onclick: () => { toast(store.devGrant(kind)); renderTown(); },
+  }, label);
+  return h('div', { class: 'col', style: { gap: '6px', marginTop: '8px' } },
+    h('hr', { class: 'sep' }),
+    h('div', { class: 'bad small' }, '개발자 모드 (?dev) — 테스트 전용'),
+    h('div', { class: 'row', style: { flexWrap: 'wrap', gap: '6px' } },
+      btn('금화 +10,000', 'gold'), btn('핵 조각 +50', 'essence'), btn('시설 모두 최대', 'facilities'),
+      btn('위험도 10까지 해금', 'risk'), btn('탐사 지도 무료 재탐색', 'board')),
+  );
 }
 
 // ================================================================== 관계
@@ -379,28 +401,76 @@ function synergyView(party: Character[]): HTMLElement {
   );
 }
 
+const RISK_COLORS = ['#8ad08a', '#8ad08a', '#c8d86a', '#e8c85a', '#f0a04a', '#f07a3a', '#e85a4a', '#d8405a', '#c03a8a', '#a040d0'];
+
+function riskTag(risk: number): HTMLElement {
+  return h('b', { style: { color: RISK_COLORS[risk - 1] ?? '#fff' } }, `☠${risk}`);
+}
+
+function modChip(id: string): HTMLElement {
+  const m = DUNGEON_MODS[id];
+  return tooltip(h('span', { class: `chip ${m.good ? 'pos' : 'neg'}` }, m.name), m.desc);
+}
+
+/** 적 레벨 범위: 첫 층 ~ 보스 */
+function enemyLevels(d: DungeonDef): [number, number] {
+  const base = 1 + levelBase(d) + dungeonFx(d).levelAdd;
+  return [base, base + Math.floor((d.floors + 1) * 0.8)];
+}
+
+function dungeonCard(d: DungeonDef, sel: boolean, lockMsg: string | null, onPick: () => void): HTMLElement {
+  const wb = d.warband ? WARBANDS[d.warband] : null;
+  const [lo, hi] = enemyLevels(d);
+  return h('div', { class: `dcard ${sel ? 'sel' : ''} ${lockMsg ? 'locked' : ''}`, onclick: () => { if (!lockMsg) onPick(); } },
+    h('div', { class: 'row' }, h('b', null, d.name), h('span', { class: 'grow' }), store.s.cleared.includes(d.id) ? h('span', { class: 'good small' }, '정복') : null),
+    d.generated
+      ? h('div', { class: 'small dim' }, `${BIOMES[d.biome!].name} · `, h('span', { style: { color: wb!.color } }, wb!.name))
+      : h('div', { class: 'small dim', style: { lineHeight: '1.5', marginTop: '4px' } }, lockMsg ?? d.desc),
+    h('div', { class: 'small mute' }, riskTag(d.risk), ` · ${d.floors}층 · 적 Lv.${lo}~${hi}`),
+    d.mods?.length ? h('div', null, ...d.mods.map(modChip)) : null,
+  );
+}
+
+function dungeonDetail(d: DungeonDef): HTMLElement {
+  const boss = ENEMIES[d.boss];
+  const wb = d.warband ? WARBANDS[d.warband] : null;
+  return h('div', { class: 'ddetail small' },
+    h('div', null, h('b', null, d.name), '  ', riskTag(d.risk), h('span', { class: 'dim' }, `  ${d.desc}`)),
+    h('div', null, '보스: ', h('b', { class: 'bad' }, d.bossName ?? boss.name), h('span', { class: 'dim' }, ` (${boss.name})`),
+      wb ? h('span', { class: 'dim' }, ' · 세력 ', h('span', { style: { color: wb.color } }, wb.name)) : null),
+    ...(d.mods ?? []).map((id) => h('div', { class: DUNGEON_MODS[id].good ? 'good' : 'bad' }, `· ${DUNGEON_MODS[id].name}: `, h('span', { class: 'dim' }, DUNGEON_MODS[id].desc))),
+  );
+}
+
 function openExpedition(): void {
   const avail = store.availableDungeons();
-  let dungeon = avail[avail.length - 1] ?? 'necropolis';
+  const fixedIds = Object.keys(DUNGEONS);
+  const firstFixed = fixedIds.find((id) => avail.includes(id) && !store.s.cleared.includes(id));
+  const byRisk = [...store.s.board].sort((a, b) => dungeonOf(b).risk - dungeonOf(a).risk);
+  let dungeon = firstFixed ?? byRisk[0] ?? 'necropolis';
   let party: string[] = [];
-  const dWrap = h('div', { class: 'dungeons' });
+  const dWrap = h('div', { class: 'col', style: { gap: '6px' } });
   const slots = h('div', { class: 'party-slots' });
   const syn = h('div', { class: 'grow' });
   const list = h('div', { class: 'cards scroll', style: { maxHeight: '300px', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))' } });
   const startBtn = h('button', { class: 'btn primary big' }, '출발');
   const render = () => {
     clear(dWrap);
-    for (const d of Object.values(DUNGEONS)) {
-      const locked = !avail.includes(d.id);
-      dWrap.appendChild(h('div', {
-        class: `dcard ${d.id === dungeon ? 'sel' : ''} ${locked ? 'locked' : ''}`,
-        onclick: () => { if (!locked) { dungeon = d.id; render(); } },
-      },
-        h('div', { class: 'row' }, h('b', null, d.name), h('span', { class: 'grow' }), store.s.cleared.includes(d.id) ? h('span', { class: 'good small' }, '정복') : null),
-        h('div', { class: 'small dim', style: { lineHeight: '1.5', marginTop: '4px' } }, locked ? `「${DUNGEONS[d.unlockAfter!].name}」 정복 후 개방` : d.desc),
-        h('div', { class: 'small mute' }, `${d.floors}층 + 보스 · 위험도 ${'☠'.repeat(d.tier + 1)}`),
-      ));
-    }
+    const pick = (id: string) => () => { dungeon = id; render(); };
+    dWrap.appendChild(h('div', { class: 'dungeons' }, ...Object.values(DUNGEONS).map((d) => dungeonCard(d, d.id === dungeon,
+      avail.includes(d.id) ? null : `「${DUNGEONS[d.unlockAfter!].name}」 정복 후 개방`, pick(d.id)))));
+    const cost = store.boardRerollCost();
+    dWrap.appendChild(h('div', { class: 'row', style: { alignItems: 'baseline' } },
+      h('h3', { style: { margin: '6px 0 0' } }, '탐사 지도'),
+      h('span', { class: 'small mute' }, '열린 위험도 ', riskTag(store.unlockedRisk()), ' · 더 위험한 곳을 정복할수록 깊은 곳이 열린다. 원정이 끝날 때마다 지도가 조금씩 바뀐다.'),
+      h('span', { class: 'grow' }),
+      h('button', {
+        class: 'btn small', disabled: store.s.gold < cost,
+        onclick: () => { const r = store.rerollBoard(); if (!r.ok) { toast(r.reason!, 'warn'); return; } if (!store.s.board.includes(dungeon) && !fixedIds.includes(dungeon)) dungeon = store.s.board[0]; renderTown(); render(); },
+      }, `🗺 다시 탐색 ◆${cost}`),
+    ));
+    dWrap.appendChild(h('div', { class: 'dungeons board' }, ...store.s.board.map((id) => dungeonCard(dungeonOf(id), id === dungeon, null, pick(id)))));
+    dWrap.appendChild(dungeonDetail(dungeonOf(dungeon)));
     clear(slots);
     for (let i = 0; i < PARTY_SIZE; i++) {
       const ch = party[i] ? store.char(party[i]) : undefined;

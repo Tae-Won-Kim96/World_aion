@@ -49,7 +49,9 @@ export function drawFloorTiles(colors: [string, string, string], seed: number): 
   return b;
 }
 
-export type ObstacleKind = 'grave' | 'pillar' | 'rubble' | 'coral' | 'bones' | 'candle';
+export type ObstacleKind =
+  | 'grave' | 'pillar' | 'rubble' | 'coral' | 'bones' | 'candle'
+  | 'crystal' | 'mushroom' | 'tree' | 'gear' | 'ice' | 'lava' | 'cactus' | 'crate' | 'barrel' | 'stalagmite' | 'totem' | 'statue' | 'web' | 'cage';
 
 export function drawObstacle(kind: ObstacleKind, accent: string): PixBuf {
   const b = new PixBuf(32, 40);
@@ -106,6 +108,146 @@ export function drawObstacle(kind: ObstacleKind, accent: string): PixBuf {
         b.set(x, 36 - h, A[3]); b.set(x, 35 - h, hex('#ffe680')); b.set(x, 34 - h, withAlpha(hex('#fff6c0'), 200));
       }
       b.hline(8, 24, 37, hex('#6a5a4a'));
+      break;
+    }
+    case 'crystal': {
+      for (const [x, h, w] of [[16, 22, 4], [10, 13, 3], [22, 11, 3]] as [number, number, number][]) {
+        for (let j = 0; j < h; j++) {
+          const k = j < 4 ? Math.round((j / 4) * w) : w;
+          b.hline(x - k, x + k, 15 + (22 - h) + j, A[2]);
+          b.set(x - k, 15 + (22 - h) + j, A[4]); b.set(x + k, 15 + (22 - h) + j, A[1]);
+        }
+        b.vline(x, 18 + (22 - h), 36, A[3]);
+      }
+      b.ellipse(16, 37, 9, 1.5, darken(A[0], 0.3));
+      break;
+    }
+    case 'mushroom': {
+      const M = ramp(mix(A[2], hex('#c04a6a'), 0.5));
+      b.rect(14, 24, 4, 13, hex('#e8dcc0')); b.vline(17, 24, 36, hex('#c8bca0'));
+      for (let j = 0; j < 8; j++) { const k = [5, 8, 10, 11, 11, 10, 9, 7][j]; b.hline(16 - k, 15 + k, 16 + j, j < 2 ? M[3] : M[2]); }
+      for (const [x, y] of [[11, 19], [18, 18], [22, 21], [14, 21]]) b.set(x, y, hex('#fff6e0'));
+      b.rect(7, 31, 2, 6, hex('#e8dcc0')); b.ellipse(8, 30, 3, 2, M[1]);
+      b.rect(23, 33, 2, 4, hex('#e8dcc0')); b.ellipse(24, 32, 2.5, 1.5, M[2]);
+      break;
+    }
+    case 'tree': {
+      const T = ramp('#4a3424');
+      const L = ramp(mix(hex('#2e4a2a'), A[1], 0.25));
+      b.rect(14, 20, 5, 17, T[2]); b.vline(14, 20, 36, T[3]); b.vline(18, 20, 36, T[1]);
+      b.line(14, 36, 10, 38, T[1]); b.line(18, 36, 22, 38, T[1]);
+      b.line(15, 24, 9, 17, T[2]); b.line(18, 22, 23, 15, T[2]);
+      b.ellipse(16, 10, 10, 8, L[1]); b.ellipse(10, 14, 6, 5, L[2]); b.ellipse(22, 13, 6, 5, L[2]); b.ellipse(15, 7, 6, 4, L[3]);
+      b.set(12, 6, L[4]); b.set(20, 9, L[4]);
+      break;
+    }
+    case 'gear': {
+      const G = ramp('#a88a4a');
+      b.ellipse(16, 24, 9, 9, G[2]);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        b.rect(Math.round(16 + Math.cos(a) * 10) - 1, Math.round(24 + Math.sin(a) * 10) - 1, 3, 3, G[2]);
+      }
+      b.ellipse(16, 24, 6, 6, G[1]); b.ellipse(16, 24, 3, 3, G[3]); b.ellipse(16, 24, 1.5, 1.5, hex('#1a1410'));
+      b.ellipse(13, 21, 2, 1, G[4]);
+      b.rect(10, 34, 12, 3, ramp('#5a5048')[1]);
+      break;
+    }
+    case 'ice': {
+      const I = ramp('#9ad8ff');
+      for (let y = 12; y <= 36; y++) {
+        const k = Math.min(9, Math.round((y - 12) * 0.5) + 2);
+        b.hline(16 - k, 15 + k, y, (y + Math.floor(y / 3)) % 7 === 0 ? I[3] : I[2]);
+        b.set(16 - k, y, I[4]); b.set(15 + k, y, I[1]);
+      }
+      b.line(12, 16, 9, 26, I[4]); b.line(19, 18, 22, 30, I[3]);
+      b.ellipse(16, 37, 10, 1.5, I[0]);
+      break;
+    }
+    case 'lava': {
+      const R = ramp('#3a2a28');
+      const Lv = ramp('#ff6a2a');
+      b.ellipse(16, 33, 12, 5, R[2]); b.ellipse(16, 33, 9, 3.5, Lv[2]); b.ellipse(15, 32, 6, 2, Lv[3]); b.ellipse(14, 32, 2, 1, hex('#ffe680'));
+      b.set(12, 28, withAlpha(Lv[3], 200)); b.set(19, 26, withAlpha(Lv[3], 160)); b.set(16, 24, withAlpha(hex('#8a8090'), 140));
+      b.ellipse(6, 34, 3, 2, R[1]); b.ellipse(26, 35, 3, 2, R[1]);
+      break;
+    }
+    case 'cactus': {
+      const C = ramp('#4a8a4a');
+      b.rect(14, 12, 5, 25, C[2]); b.vline(14, 12, 36, C[3]); b.vline(18, 12, 36, C[1]); b.hline(15, 17, 11, C[2]);
+      b.rect(8, 20, 3, 8, C[2]); b.hline(8, 14, 27, C[2]); b.vline(8, 20, 27, C[3]);
+      b.rect(21, 16, 3, 8, C[2]); b.hline(18, 23, 23, C[2]); b.vline(23, 16, 23, C[1]);
+      for (let y = 14; y < 36; y += 4) { b.set(13, y, hex('#e8dcc0')); b.set(19, y + 2, hex('#e8dcc0')); }
+      b.set(16, 10, hex('#ff7aa0')); b.ellipse(16, 37, 7, 1.5, hex('#8a6e44'));
+      break;
+    }
+    case 'crate': {
+      const W = ramp('#8a6a3a');
+      b.rect(7, 20, 18, 17, W[2]);
+      b.hline(7, 24, 20, W[3]); b.hline(7, 24, 36, W[1]); b.vline(7, 20, 36, W[3]); b.vline(24, 20, 36, W[1]);
+      b.hline(7, 24, 28, W[1]); b.line(8, 21, 23, 35, W[1]); b.line(8, 22, 22, 35, W[3]);
+      b.rect(12, 12, 10, 8, W[2]); b.hline(12, 21, 12, W[3]); b.vline(21, 12, 19, W[1]); b.hline(12, 21, 16, W[1]);
+      break;
+    }
+    case 'barrel': {
+      const W = ramp('#7a5030');
+      for (let y = 16; y <= 37; y++) {
+        const k = 6 + Math.round(Math.sin(((y - 16) / 21) * Math.PI) * 2);
+        b.hline(16 - k, 15 + k, y, W[2]); b.set(16 - k, y, W[3]); b.set(15 + k, y, W[1]);
+      }
+      for (const y of [19, 26, 34]) b.hline(8, 23, y, hex('#4a4a52'));
+      b.ellipse(16, 16, 6, 1.5, W[3]); b.ellipse(16, 16, 4, 1, W[1]);
+      b.set(18, 30, mix(W[2], A[2], 0.6)); b.set(18, 31, mix(W[2], A[2], 0.6));
+      break;
+    }
+    case 'stalagmite': {
+      for (const [x, h, w] of [[16, 26, 6], [9, 14, 3], [24, 18, 4]] as [number, number, number][]) {
+        for (let j = 0; j < h; j++) {
+          const k = Math.round(w * (j / h));
+          b.hline(x - k, x + k, 37 - h + j, S[2]);
+          b.set(x - k, 37 - h + j, S[3]); b.set(x + k, 37 - h + j, S[1]);
+        }
+      }
+      b.set(16, 13, withAlpha(A[3], 200));
+      break;
+    }
+    case 'totem': {
+      const W = ramp('#6a4a2a');
+      b.rect(12, 8, 8, 29, W[2]); b.vline(12, 8, 36, W[3]); b.vline(19, 8, 36, W[1]);
+      for (const y of [10, 20, 29]) {
+        b.rect(13, y + 1, 2, 2, A[3]); b.rect(17, y + 1, 2, 2, A[3]);
+        b.hline(13, 18, y + 5, W[0]); b.hline(11, 20, y + 7, W[1]);
+      }
+      b.line(11, 9, 6, 6, W[2]); b.line(20, 9, 25, 6, W[2]); b.set(16, 6, hex('#e8e0c8')); b.set(15, 7, hex('#e8e0c8')); b.set(17, 7, hex('#e8e0c8'));
+      break;
+    }
+    case 'statue': {
+      b.rect(9, 32, 14, 5, S[1]); b.hline(9, 22, 32, S[3]);
+      b.rect(12, 18, 8, 14, S[2]); b.vline(12, 18, 31, S[3]); b.vline(19, 18, 31, S[1]);
+      b.ellipse(16, 13, 4, 4, S[2]); b.set(14, 12, S[0]); b.set(17, 12, S[0]);
+      b.line(12, 20, 8, 26, S[2]); b.line(19, 20, 24, 16, S[2]); b.vline(25, 6, 22, S[3]);
+      b.line(13, 26, 18, 30, S[1]); // 금
+      b.set(10, 33, hex('#5a8a4a')); b.set(21, 34, hex('#5a8a4a'));
+      break;
+    }
+    case 'web': {
+      const Wb = withAlpha(hex('#e8e8f0'), 200);
+      const cx = 16, cy = 22;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        b.line(cx, cy, cx + Math.cos(a) * 14, cy + Math.sin(a) * 14, Wb);
+      }
+      for (const r of [4, 8, 12]) for (let a = 0; a < 360; a += 12) b.set(cx + Math.cos((a * Math.PI) / 180) * r, cy + Math.sin((a * Math.PI) / 180) * r, Wb);
+      b.ellipse(19, 19, 2, 2, hex('#1a1418')); b.set(18, 18, A[3]);
+      break;
+    }
+    case 'cage': {
+      const I = ramp('#5a5a66');
+      for (let a = 0; a < 360; a += 8) b.set(16 + Math.cos((a * Math.PI) / 180) * 9, 12 + Math.sin((a * Math.PI) / 180) * 3, I[1]);
+      for (let x = 8; x <= 24; x += 4) b.vline(x, 12, 36, x < 16 ? I[3] : I[2]);
+      b.hline(7, 25, 36, I[1]); b.hline(7, 25, 24, I[2]);
+      b.vline(16, 4, 9, I[2]); b.set(16, 3, I[3]);
+      b.ellipse(15, 33, 3, 2, hex('#e8e0c8')); b.set(14, 32, hex('#1a1018'));
       break;
     }
   }

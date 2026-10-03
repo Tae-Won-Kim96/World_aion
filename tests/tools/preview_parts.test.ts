@@ -48,6 +48,7 @@ test.skipIf(!process.env.PREVIEW_OUT)('preview parts', () => {
     { skinPattern: 'scales', slitEyes: true }, { skinPattern: 'bark' }, { skinPattern: 'stone' }, { skinPattern: 'metal' }, { skinPattern: 'stitches' }, { skinPattern: 'spots' },
     { snout: true, ears: 'bear' }, { legs: 'fishtail', ears: 'fin' }, { legs: 'hooves', horns: 'bull' }, { height: 'tiny', wings: 'butterfly' },
     { wings: 'bird' }, { wings: 'bat', tail: 'devil' }, { tail: 'fox', ears: 'fox' }, { tail: 'cat', ears: 'cat' }, { tail: 'lizard' }, { tail: 'fish' }, { aura: '#ff6a2a', crest: 'flame' },
+    { horns: 'antennae', wings: 'insect', manyEyes: true }, { legs: 'serpent', slitEyes: true }, { legs: 'ghost', translucent: true }, { oneEye: true, height: 'tall' }, { frogEyes: true }, { chestHead: true },
   ];
   rows.push(row(feats.map((f, i) => {
     const b0 = base(i + 200);
@@ -109,4 +110,20 @@ test.skipIf(!process.env.PREVIEW_OUT)('preview races', async () => {
     all.blit(drawFrame(lookFromCharacter(ch), 'idle0'), (i % 10) * FRAME_W, Math.floor(i / 10) * FRAME_H);
   });
   writePng(`${OUT}/races_all.png`, all.w, all.h, all.data, 3, hex('#2a2438'));
+});
+
+// 지형 견본: 장애물 전부 + 배경 스타일별 한 장씩
+test.skipIf(!process.env.PREVIEW_OUT)('preview env', async () => {
+  const { drawObstacle } = await import('../../src/art/tiles');
+  const { drawDungeonBackdrop, BG_W, BG_H } = await import('../../src/art/backdrops');
+  const { BIOMES } = await import('../../src/core/data/biomes');
+  const kinds = ['grave', 'pillar', 'rubble', 'coral', 'bones', 'candle', 'crystal', 'mushroom', 'tree', 'gear', 'ice', 'lava', 'cactus', 'crate', 'barrel', 'stalagmite', 'totem', 'statue', 'web', 'cage'] as const;
+  const ob = new PixBuf(kinds.length * 32, 40);
+  kinds.forEach((k, i) => ob.blit(drawObstacle(k, '#7fe3ff'), i * 32, 0));
+  writePng(`${OUT}/obstacles.png`, ob.w, ob.h, ob.data, 4, hex('#3a3442'));
+  const biomes = Object.values(BIOMES);
+  const cols = 3;
+  const sheet = new PixBuf(cols * BG_W, Math.ceil(biomes.length / cols) * BG_H);
+  biomes.forEach((bm, i) => sheet.blit(drawDungeonBackdrop(bm.sky[0], bm.sky[1], bm.floor[0], bm.accent, i * 7 + 3, bm.style), (i % cols) * BG_W, Math.floor(i / cols) * BG_H));
+  writePng(`${OUT}/backdrops.png`, sheet.w, sheet.h, sheet.data, 1, hex('#000000'));
 });

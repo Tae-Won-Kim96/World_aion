@@ -1,4 +1,5 @@
 import type { FactionId, RaceId, Role } from '../types';
+import { BIOME_EVENTS } from './events_biome';
 
 // 파티 조건: 조건을 만족한 동료가 '행동자'가 된다 ({actor})
 export type Cond =
@@ -52,6 +53,8 @@ export interface EventDef {
   text: string;
   weight: number;
   options: EventOption[];
+  biomes?: string[];   // 이 지형의 던전에서만
+  warbands?: string[]; // 또는 이 세력의 던전에서만
 }
 
 const UNHOLY: Cond = { any: [{ vampire: true }, { tag: 'unholy' }] };
@@ -311,4 +314,5 @@ export const EVENTS: EventDef[] = [
       { label: '거절한다', outcomes: [{ w: 1, text: '"아쉽군요. 궁정은 기억할 겁니다."', fx: [{ rep: 'nightcourt', n: -5 }, { rep: 'radiance', n: 2 }] }] },
     ],
   },
+  ...BIOME_EVENTS,
 ];

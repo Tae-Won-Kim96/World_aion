@@ -1,7 +1,9 @@
 // docs/GAME_DESIGN.md 부록 표 생성기 (TABLES_OUT 설정 시에만)
 import { writeFileSync } from 'node:fs';
 import { test } from 'vitest';
+import { BIOMES } from '../../src/core/data/biomes';
 import { CLASSES, ROLE_NAMES } from '../../src/core/data/classes';
+import { DUNGEON_MODS } from '../../src/core/data/dungeon_mods';
 import { ENEMIES } from '../../src/core/data/enemies';
 import { EVENTS } from '../../src/core/data/events';
 import { FACILITIES } from '../../src/core/data/facilities';
@@ -12,6 +14,7 @@ import { PLAYABLE_RACES, RACES } from '../../src/core/data/races';
 import { RELICS } from '../../src/core/data/relics';
 import { SKILLS } from '../../src/core/data/skills';
 import { TRAITS } from '../../src/core/data/traits';
+import { WARBANDS } from '../../src/core/data/warbands';
 import { STAT_NAMES } from '../../src/core/types';
 
 const mods = (m: Record<string, number | undefined>) => Object.entries(m).filter(([, v]) => v).map(([k, v]) => `${(STAT_NAMES as Record<string, string>)[k] ?? k} ${v! > 0 ? '+' : ''}${v}`).join(', ') || '—';
@@ -49,8 +52,18 @@ test.skipIf(!process.env.TABLES_OUT)('tables', () => {
   }
   out.push(`\n### 시설\n\n| 시설 | 1단계 | 2단계 | 3단계 |\n|---|---|---|---|`);
   for (const f of Object.values(FACILITIES)) out.push(`| ${f.icon} ${f.name} | ${f.levels.map((l) => `◆${l.gold}${l.shards ? ` · 핵 ${l.shards}` : ''} — ${l.desc}`).join(' | ')} |`);
-  out.push(`\n### 사건 (${EVENTS.length})\n\n| 사건 | 선택지 (조건) |\n|---|---|`);
-  for (const e of EVENTS) out.push(`| ${e.title} | ${e.options.map((o) => o.label + (o.reqText ? ` [${o.reqText}]` : '')).join(' / ')} |`);
+  const en = (ids: string[]) => ids.map((id) => ENEMIES[id].name).join(', ');
+  out.push(`\n### 적 세력 (${Object.keys(WARBANDS).length})\n\n| 세력 | 등장 ☠ | 일반 | 정예 | 보스 |\n|---|---|---|---|---|`);
+  for (const w of Object.values(WARBANDS)) out.push(`| **${w.name}** — ${w.desc} | ${w.minRisk}+ | ${en(w.regulars)} | ${en(w.elites)} | ${w.bosses.map((b) => `${ENEMIES[b].name}${ENEMIES[b].title && ENEMIES[b].title !== ENEMIES[b].name ? ` (칭호 '${ENEMIES[b].title}')` : ''}`).join(', ')} |`);
+  out.push(`\n### 지형 (${Object.keys(BIOMES).length})\n\n| 지형 | 이름 명사 | 장애물 | 배경 | 어울리는 세력 (가중치) |\n|---|---|---|---|---|`);
+  for (const b of Object.values(BIOMES)) out.push(`| ${b.name} | ${b.nouns.join(', ')} | ${b.obstacles.join(', ')} | ${b.style} | ${Object.entries(b.warbands).map(([w, n]) => `${WARBANDS[w].name} ${n}`).join(', ')} |`);
+  out.push(`\n### 던전 변이 (${Object.keys(DUNGEON_MODS).length})\n\n| 변이 | 등장 ☠ | 효과 |\n|---|---|---|`);
+  for (const m of Object.values(DUNGEON_MODS)) out.push(`| ${m.good ? '🟢' : '🔴'} ${m.name} | ${m.minRisk}+ | ${m.desc} |`);
+  out.push(`\n### 사건 (${EVENTS.length})\n\n| 사건 | 나오는 곳 | 선택지 (조건) |\n|---|---|---|`);
+  for (const e of EVENTS) {
+    const where = [...(e.biomes ?? []).map((b) => BIOMES[b].name), ...(e.warbands ?? []).map((w) => WARBANDS[w].name)].join(', ') || '어디서나';
+    out.push(`| ${e.title} | ${where} | ${e.options.map((o) => o.label + (o.reqText ? ` [${o.reqText}]` : '')).join(' / ')} |`);
+  }
   out.push('\n### 적과 소환수\n\n| 이름 | 종족 · 직업 | 기술 | 비고 |\n|---|---|---|---|');
   for (const e of Object.values(ENEMIES)) out.push(`| ${e.name} | ${RACES[e.race].name} · ${CLASSES[e.cls].name} | ${e.skills.map((s) => SKILLS[s].name).join(', ')} | ${e.boss ? '보스' : e.elite ? '정예' : e.tags.includes('summon') ? '아군 소환수' : ''}${e.phases ? ` · 페이즈 ${e.phases.length}` : ''} |`);
   out.push(`\n### 장비 베이스 (${Object.keys(ITEM_BASES).length})\n\n| 이름 | 부위 | 기본 능력치 |\n|---|---|---|`);

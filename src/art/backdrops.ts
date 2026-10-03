@@ -2,6 +2,7 @@
 import { darken, hex, lighten, mix, ramp, withAlpha } from './color';
 import { PixBuf } from './pixbuf';
 import { Rng } from '../core/rng';
+import type { BackdropStyle } from '../core/data/dungeons';
 
 export const BG_W = 320;
 export const BG_H = 180;
@@ -133,24 +134,258 @@ export function drawTownBackdrop(graves: number, fac: TownFacilities = { forge: 
   return b;
 }
 
-export function drawDungeonBackdrop(skyTop: string, skyBottom: string, floor: string, accent: string, seed = 3): PixBuf {
+function blend(b: PixBuf, x: number, y: number, c: number, t: number): void {
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || y < 0 || x >= b.w || y >= b.h) return;
+  b.set(x, y, mix(b.get(x, y), c, t));
+}
+
+function gear(b: PixBuf, cx: number, cy: number, r: number, c: number, hole: number): void {
+  b.ellipse(cx, cy, r, r, c);
+  const teeth = Math.max(6, Math.round(r * 0.8));
+  for (let i = 0; i < teeth; i++) {
+    const a = (i / teeth) * Math.PI * 2;
+    b.rect(Math.round(cx + Math.cos(a) * (r + 1)) - 1, Math.round(cy + Math.sin(a) * (r + 1)) - 1, 3, 3, c);
+  }
+  b.ellipse(cx, cy, r * 0.35, r * 0.35, hole);
+}
+
+export function drawDungeonBackdrop(skyTop: string, skyBottom: string, floor: string, accent: string, seed = 3, style: BackdropStyle = 'columns'): PixBuf {
   const b = new PixBuf(BG_W, BG_H);
   const rng = new Rng(seed);
   sky(b, skyTop, skyBottom, BG_H);
-  // 기둥 실루엣
-  for (let i = 0; i < 7; i++) {
-    const x = 10 + i * 48 + rng.int(-6, 6);
-    const w = rng.int(10, 16);
-    const c = mix(hex(skyTop), hex('#000000'), 0.3);
-    b.rect(x, 20, w, BG_H - 20, c);
-    b.rect(x - 2, 20, w + 4, 4, c);
-    b.rect(x - 2, BG_H - 30, w + 4, 4, c);
+  const black = hex('#000000');
+  const sil = mix(hex(skyTop), black, 0.3);       // 가까운 실루엣
+  const far = mix(hex(skyBottom), hex(skyTop), 0.55); // 먼 실루엣
+  const acc = hex(accent);
+  const floorY = BG_H - 26;
+  switch (style) {
+    case 'columns':
+      for (let i = 0; i < 7; i++) {
+        const x = 10 + i * 48 + rng.int(-6, 6);
+        const w = rng.int(10, 16);
+        b.rect(x, 20, w, BG_H - 20, sil);
+        b.rect(x - 2, 20, w + 4, 4, sil);
+        b.rect(x - 2, BG_H - 30, w + 4, 4, sil);
+      }
+      break;
+    case 'cave': {
+      // 먼 동굴 벽 + 종유석/석순
+      for (let x = 0; x < BG_W; x++) {
+        const top = 14 + Math.round(Math.sin(x * 0.07 + seed) * 6 + Math.sin(x * 0.23) * 3);
+        for (let y = 0; y < top; y++) b.set(x, y, sil);
+        const back = floorY - 30 + Math.round(Math.sin(x * 0.05 + 1) * 8);
+        for (let y = back; y < floorY; y++) b.set(x, y, far);
+      }
+      for (let i = 0; i < 16; i++) {
+        const x = rng.int(0, BG_W - 1);
+        const len = rng.int(12, 46);
+        const w = rng.int(3, 7);
+        for (let j = 0; j < len; j++) { const k = Math.round(w * (1 - j / len)); b.hline(x - k, x + k, 12 + j, sil); }
+      }
+      for (let i = 0; i < 10; i++) {
+        const x = rng.int(0, BG_W - 1);
+        const len = rng.int(10, 34);
+        const w = rng.int(3, 6);
+        for (let j = 0; j < len; j++) { const k = Math.round(w * (1 - j / len)); b.hline(x - k, x + k, floorY - j, sil); }
+      }
+      // 빛나는 결정·용암 줄기
+      for (let i = 0; i < 6; i++) {
+        const x = rng.int(4, BG_W - 4);
+        const y = rng.int(30, floorY - 20);
+        b.set(x, y, acc); b.set(x, y - 1, withAlpha(acc, 180)); b.set(x + 1, y, withAlpha(acc, 140));
+      }
+      break;
+    }
+    case 'forest': {
+      for (let x = 0; x < BG_W; x++) {
+        const h = floorY - 40 + Math.round(Math.sin(x * 0.09 + seed) * 6 + Math.sin(x * 0.31) * 4);
+        for (let y = h; y < floorY; y++) b.set(x, y, far);
+      }
+      for (let i = 0; i < 9; i++) {
+        const x = 8 + i * 36 + rng.int(-8, 8);
+        const w = rng.int(4, 8);
+        b.rect(x, 0, w, floorY, sil);
+        // 뿌리
+        b.line(x, floorY - 1, x - 6, floorY + 2, sil); b.line(x + w - 1, floorY - 1, x + w + 5, floorY + 2, sil);
+        // 뒤틀린 가지
+        for (let k = 0; k < 3; k++) {
+          const y0 = rng.int(20, 90);
+          const dir = rng.chance(0.5) ? -1 : 1;
+          const len = rng.int(10, 22);
+          const sx = dir < 0 ? x : x + w - 1;
+          b.line(sx, y0, sx + dir * len, y0 - rng.int(6, 14), sil);
+          b.line(sx, y0 + 1, sx + dir * len, y0 - rng.int(4, 12), sil);
+        }
+      }
+      // 우거진 수관
+      for (let i = 0; i < 26; i++) b.ellipse(rng.int(0, BG_W), rng.int(-4, 14), rng.int(10, 20), rng.int(6, 12), sil);
+      // 덩굴
+      for (let i = 0; i < 14; i++) { const x = rng.int(0, BG_W - 1); b.vline(x, 10, 10 + rng.int(10, 40), sil); }
+      break;
+    }
+    case 'pipes': {
+      const pipe = mix(sil, hex(floor), 0.2);
+      const hi = lighten(pipe, 0.15);
+      for (let i = 0; i < 4; i++) {
+        const y = 18 + i * 26 + rng.int(-4, 4);
+        const t = rng.int(5, 9);
+        b.rect(0, y, BG_W, t, pipe); b.hline(0, BG_W, y, hi);
+        for (let x = rng.int(10, 40); x < BG_W; x += rng.int(40, 70)) b.rect(x, y - 1, 4, t + 2, darken(pipe, 0.25));
+      }
+      for (let i = 0; i < 6; i++) {
+        const x = rng.int(0, BG_W - 10);
+        const t = rng.int(6, 10);
+        b.rect(x, 0, t, floorY, pipe); b.vline(x, 0, floorY, hi);
+        b.rect(x - 1, rng.int(40, 100), t + 2, 4, darken(pipe, 0.25));
+      }
+      // 배수구 아치와 떨어지는 물방울
+      for (let i = 0; i < 3; i++) {
+        const cx = 50 + i * 110 + rng.int(-10, 10);
+        b.ellipse(cx, floorY - 2, 16, 14, darken(sil, 0.4));
+        for (let y = floorY - 14; y < floorY; y += 3) b.set(cx + rng.int(-6, 6), y, withAlpha(acc, 150));
+      }
+      for (let i = 0; i < 20; i++) { const x = rng.int(0, BG_W - 1); const y = rng.int(20, floorY - 4); b.vline(x, y, y + 1, withAlpha(acc, 120)); }
+      break;
+    }
+    case 'peaks': {
+      const snow = mix(hex('#ffffff'), hex(skyBottom), 0.2);
+      for (let layer = 0; layer < 2; layer++) {
+        const c = layer === 0 ? far : sil;
+        const top = layer === 0 ? 40 : 78;
+        const amp = layer === 0 ? 46 : 40;
+        const f = layer === 0 ? 0.021 : 0.034;
+        for (let x = 0; x < BG_W; x++) {
+          // |sin| 의 뾰족한 골을 뒤집어 봉우리로 쓴다
+          const h = top + Math.round(Math.abs(Math.sin(x * f + seed + layer * 1.7)) * amp + Math.sin(x * 0.27 + layer) * 1.5);
+          for (let y = h; y < floorY; y++) b.set(x, y, c);
+          const cap = Math.max(0, 9 - Math.round((h - top) * 0.6)) + (x % 3 === 0 ? 1 : 0);
+          for (let y = h; y < h + cap; y++) b.set(x, y, mix(c, snow, layer === 0 ? 0.45 : 0.7));
+        }
+      }
+      for (let i = 0; i < 70; i++) b.set(rng.int(0, BG_W - 1), rng.int(0, floorY), withAlpha(snow, rng.int(120, 220)));
+      break;
+    }
+    case 'factory': {
+      for (let i = 0; i < 5; i++) {
+        const x = 10 + i * 66 + rng.int(-6, 6);
+        const w = rng.int(12, 20);
+        const top = rng.int(10, 50);
+        b.rect(x, top, w, floorY - top, sil);
+        b.rect(x - 2, top, w + 4, 3, darken(sil, 0.2));
+        for (let k = 0; k < 4; k++) blend(b, x + w / 2 + rng.int(-3, 3), top - 3 - k * 4, hex('#9a9090'), 0.4 - k * 0.08);
+      }
+      for (let i = 0; i < 6; i++) {
+        const r = rng.int(8, 18);
+        gear(b, rng.int(r, BG_W - r), rng.int(30, floorY - r), r, far, hex(skyTop));
+      }
+      for (let x = 0; x < BG_W; x += 4) b.set(x, 40 + Math.round(Math.sin(x * 0.1) * 2), sil); // 전선
+      break;
+    }
+    case 'dunes': {
+      b.ellipse(250, 40, 18, 18, mix(acc, hex('#ffffff'), 0.4));
+      for (let a = 0; a < 360; a += 8) blend(b, 250 + Math.cos((a * Math.PI) / 180) * 24, 40 + Math.sin((a * Math.PI) / 180) * 24, acc, 0.4);
+      // 피라미드
+      for (let p = 0; p < 2; p++) {
+        const cx = 70 + p * 90 + rng.int(-10, 10);
+        const h = 40 - p * 12;
+        for (let j = 0; j < h; j++) b.hline(cx - j, cx + j, floorY - 26 - h + j + 10, j % 6 === 0 ? darken(far, 0.1) : far);
+      }
+      for (let layer = 0; layer < 2; layer++) {
+        const c = layer === 0 ? mix(far, hex(floor), 0.3) : mix(sil, hex(floor), 0.4);
+        for (let x = 0; x < BG_W; x++) {
+          const h = floorY - 20 + layer * 10 + Math.round(Math.sin(x * (0.03 + layer * 0.02) + seed + layer) * 7);
+          for (let y = h; y < floorY; y++) b.set(x, y, c);
+        }
+      }
+      break;
+    }
+    case 'clouds': {
+      const cloud = mix(hex('#ffffff'), hex(skyBottom), 0.25);
+      for (let i = 0; i < 12; i++) {
+        const cx = rng.int(0, BG_W);
+        const cy = rng.int(20, 110);
+        for (let k = 0; k < 4; k++) b.ellipse(cx + k * 9 - 13, cy + (k % 2) * 2, rng.int(8, 13), rng.int(4, 7), withAlpha(cloud, 200));
+      }
+      // 떠 있는 섬과 부서진 기둥
+      const rock = mix(sil, hex(floor), 0.35);
+      const grass = mix(acc, hex(floor), 0.5);
+      for (let i = 0; i < 4; i++) {
+        const cx = 40 + i * 80 + rng.int(-12, 12);
+        const cy = rng.int(60, 104);
+        const w = rng.int(18, 30);
+        for (let x = cx - w; x <= cx + w; x++) {
+          const edge = 1 - Math.abs(x - cx) / w;
+          const depth = Math.round(4 + edge * rng.int(8, 16));
+          for (let y = cy; y < cy + depth; y++) b.set(x, y, y < cy + 2 ? grass : (x + y) % 5 === 0 ? darken(rock, 0.2) : rock);
+        }
+        for (const c of [-0.5, 0.35]) {
+          const px = Math.round(cx + c * w);
+          const h = rng.int(8, 22);
+          b.rect(px - 2, cy - h, 5, h, sil); b.rect(px - 3, cy - 2, 7, 2, sil);
+          b.set(px - 2, cy - h - 1, sil); b.set(px, cy - h - 2, sil); // 부러진 끝
+        }
+      }
+      break;
+    }
+    case 'tent': {
+      const s1 = mix(acc, black, 0.55);
+      const s2 = mix(hex(skyBottom), black, 0.4);
+      for (let y = 0; y < floorY; y++) {
+        const k = y / floorY;
+        for (let x = 0; x < BG_W; x++) {
+          const rel = (x - BG_W / 2) / (0.25 + k * 0.75);
+          if (Math.floor((rel + 1000) / 20) % 2 === 0) blend(b, x, y, s1, 0.4);
+          else blend(b, x, y, s2, 0.35);
+        }
+      }
+      // 장식 깃발 줄
+      for (let row = 0; row < 2; row++) {
+        const y0 = 26 + row * 22;
+        for (let x = 0; x < BG_W; x += 12) {
+          const y = y0 + Math.round(Math.sin((x / BG_W) * Math.PI * 2) * 4);
+          const c = [acc, hex('#c0392b'), hex('#2e86de')][(x / 12 + row) % 3];
+          for (let j = 0; j < 5; j++) b.hline(x + j, x + 8 - j, y + j, mix(c, black, 0.3));
+        }
+      }
+      // 무대 조명
+      for (let i = 0; i < 2; i++) {
+        const cx = 90 + i * 140;
+        for (let y = 0; y < floorY; y++) { const w = y * 0.35; for (let x = cx - w; x <= cx + w; x++) if ((x + y) % 2 === 0) blend(b, x, y, acc, 0.08); }
+      }
+      break;
+    }
+    case 'void': {
+      for (let i = 0; i < 120; i++) b.set(rng.int(0, BG_W - 1), rng.int(0, floorY), withAlpha(hex('#ffffff'), rng.int(60, 200)));
+      // 갈라진 균열
+      for (let i = 0; i < 5; i++) {
+        let x = rng.int(0, BG_W);
+        let y = rng.int(0, 40);
+        for (let s = 0; s < 18; s++) {
+          const nx = x + rng.int(-8, 8);
+          const ny = y + rng.int(4, 9);
+          b.line(x, y, nx, ny, acc);
+          b.line(x + 1, y, nx + 1, ny, withAlpha(lighten(acc, 0.4), 160));
+          x = nx; y = ny;
+          if (y > floorY) break;
+        }
+      }
+      // 떠다니는 파편
+      for (let i = 0; i < 14; i++) {
+        const cx = rng.int(0, BG_W);
+        const cy = rng.int(10, floorY - 10);
+        const r = rng.int(2, 6);
+        for (let j = 0; j < r * 2; j++) { const k = Math.round(r - Math.abs(r - j)); b.hline(cx - k, cx + k, cy - r + j, sil); }
+        b.set(cx, cy - r, acc);
+      }
+      break;
+    }
   }
   // 바닥
   const F = ramp(floor);
-  for (let y = BG_H - 26; y < BG_H; y++) for (let x = 0; x < BG_W; x++) b.set(x, y, (x + y) % 9 === 0 ? F[1] : darken(F[2], 0.4));
+  for (let y = floorY; y < BG_H; y++) for (let x = 0; x < BG_W; x++) b.set(x, y, (x + y) % 9 === 0 ? F[1] : darken(F[2], 0.4));
   // 떠도는 빛
-  for (let i = 0; i < 30; i++) b.set(rng.int(0, BG_W - 1), rng.int(10, BG_H - 30), withAlpha(hex(accent), rng.int(60, 160)));
+  for (let i = 0; i < 30; i++) b.set(rng.int(0, BG_W - 1), rng.int(10, BG_H - 30), withAlpha(acc, rng.int(60, 160)));
   return b;
 }
 

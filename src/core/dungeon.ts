@@ -1,5 +1,6 @@
 import { CLASSES } from './data/classes';
-import { DUNGEONS, type DungeonDef } from './data/dungeons';
+import { type DungeonDef, levelBase } from './data/dungeons';
+import { dungeonFx, dungeonOf } from './gen/dungeon';
 import { ENEMIES } from './data/enemies';
 import { EVENTS, type Cond, type EventDef } from './data/events';
 import { RACES } from './data/races';
@@ -22,7 +23,7 @@ export interface MapNode {
   next: string[];
 }
 
-export interface EnemySpawn { def: string; level: number; seed: number }
+export interface EnemySpawn { def: string; level: number; seed: number; name?: string }
 
 export interface BattleSpec {
   enemies: EnemySpawn[];
@@ -33,6 +34,8 @@ export interface BattleSpec {
   seed: number;
   goldBonus: number;
   theme: string;
+  enemyDmgMul?: number;   // 변이: 적 피해 배율
+  trapPct?: number;       // 변이: 전투 시작 시 아군 체력 손실
 }
 
 export type Darkness = 'bright' | 'dim' | 'dark';
@@ -70,6 +73,7 @@ export interface RunState {
 
 export function generateMap(d: DungeonDef, seed: number): MapNode[] {
   const rng = new Rng(seed);
+  const fx = dungeonFx(d);
   const layers: MapNode[][] = [];
   const L = d.floors;
   for (let i = 0; i < L; i++) {
@@ -81,7 +85,7 @@ export function generateMap(d: DungeonDef, seed: number): MapNode[] {
       else if (i === L - 1) kind = 'rest';
       else {
         kind = rng.weighted<NodeKind>(['battle', 'event', 'elite', 'treasure', 'rest', 'shop'], (k) => ({
-          battle: 42, event: 28, elite: i >= 2 ? 11 : 0, treasure: 8, rest: i >= 2 ? 6 : 0, shop: i >= 2 ? 5 : 0,
+          battle: 42, event: 28, elite: i >= 2 ? 11 * fx.eliteW : 0, treasure: 8 * fx.treasureW, rest: i >= 2 ? 6 * fx.restW : 0, shop: i >= 2 ? 5 : 0,
         }[k as string] ?? 0));
       }
       return { id: `n${i}_${col}`, layer: i, col, kind, next: [] } as MapNode;
@@ -120,36 +124,39 @@ export function darkness(torch: number): Darkness {
 export const DARKNESS_NAMES: Record<Darkness, string> = { bright: '밝음', dim: '어스름', dark: '칠흑' };
 export const LOOT_MUL: Record<Darkness, number> = { bright: 1, dim: 1.1, dark: 1.25 };
 
-export function torchCost(party: Character[], relics: string[] = []): number {
+export function torchCost(party: Character[], relics: string[] = [], mul = 1): number {
   let saver = Math.max(0, ...party.map((c) => computeEffects(c).torchSaver));
   if (relics.includes('silver_lantern')) saver += 0.3;
-  return Math.max(4, Math.round(12 * (1 - Math.min(0.7, saver))));
+  return Math.max(4, Math.round(12 * mul * (1 - Math.min(0.7, saver))));
 }
 
 /** 현재 위치 기준 아이템 레벨 */
 export function itemLevel(run: RunState): number {
   const node = run.nodes.find((n) => n.id === run.current);
-  return 1 + (node?.layer ?? 0) + DUNGEONS[run.dungeon].tier * 3;
+  return 1 + (node?.layer ?? 0) + levelBase(dungeonOf(run.dungeon));
 }
 
 export function makeBattle(run: RunState, kind: 'battle' | 'elite' | 'boss', party: Character[], rng: Rng): BattleSpec {
-  const d = DUNGEONS[run.dungeon];
+  const d = dungeonOf(run.dungeon);
+  const fx = dungeonFx(d);
   const node = run.nodes.find((n) => n.id === run.current);
   const layer = node?.layer ?? 0;
-  const level = 1 + Math.floor(layer * 0.8) + d.tier * 3;
+  const level = 1 + Math.floor(layer * 0.8) + levelBase(d) + fx.levelAdd;
   const count = kind === 'battle' ? Math.min(5, 2 + Math.floor(layer / 2) + (rng.chance(0.5) ? 1 : 0)) : kind === 'boss' ? 2 : 2 + (layer > 4 ? 1 : 0);
   const enemies: EnemySpawn[] = [];
   if (kind === 'elite') enemies.push({ def: rng.pick(d.elites), level: level + 1, seed: rng.seed32() });
-  if (kind === 'boss') enemies.push({ def: d.boss, level: level + 2, seed: rng.seed32() });
+  if (kind === 'boss') enemies.push({ def: d.boss, level: level + 2, seed: rng.seed32(), name: d.bossName });
   for (let i = 0; i < count; i++) enemies.push({ def: rng.pick(d.enemies), level, seed: rng.seed32() });
   const dk = darkness(run.torch);
   const nv = party.filter((c) => computeEffects(c).nightVision).length;
   let ambushP = dk === 'dim' ? 0.15 : dk === 'dark' ? 0.35 : 0;
+  ambushP += fx.ambushAdd;
   if (nv * 2 >= party.length) ambushP /= 2;
   if (run.relics?.includes('watchful_eye')) ambushP = 0;
   return {
     enemies, elite: kind === 'elite', boss: kind === 'boss', ambush: kind !== 'boss' && rng.chance(ambushP),
-    darkness: dk, seed: rng.seed32(), goldBonus: LOOT_MUL[dk], theme: run.dungeon,
+    darkness: dk, seed: rng.seed32(), goldBonus: LOOT_MUL[dk] * fx.goldMul, theme: run.dungeon,
+    ...(fx.enemyDmgMul !== 1 ? { enemyDmgMul: fx.enemyDmgMul } : {}), ...(fx.trapPct ? { trapPct: fx.trapPct } : {}),
   };
 }
 
@@ -180,9 +187,17 @@ export function condMatch(c: Cond, party: Character[], gold: number): Character 
   return party.find(pred) ?? null;
 }
 
+/** 지형·세력 전용 사건은 맞는 던전에서만, 그리고 그곳에서는 더 자주 나온다 */
+export function eventFits(e: EventDef, biome?: string, warband?: string): boolean {
+  if (!e.biomes && !e.warbands) return true;
+  return (!!biome && !!e.biomes?.includes(biome)) || (!!warband && !!e.warbands?.includes(warband));
+}
+
 export function pickEvent(run: RunState, rng: Rng): EventDef {
-  const pool = EVENTS.filter((e) => !run.usedEvents.includes(e.id));
-  return rng.weighted(pool.length ? pool : EVENTS, (e) => e.weight);
+  const d = dungeonOf(run.dungeon);
+  const fits = EVENTS.filter((e) => eventFits(e, d.biome, d.warband));
+  const pool = fits.filter((e) => !run.usedEvents.includes(e.id));
+  return rng.weighted(pool.length ? pool : fits, (e) => e.weight * (e.biomes || e.warbands ? 1.6 : 1));
 }
 
 export function makeShop(rng: Rng, discount: number, ilvl = 1): ShopItem[] {

@@ -1,5 +1,6 @@
 import { CLASSES } from './data/classes';
-import { DUNGEONS } from './data/dungeons';
+import { DUNGEONS, levelBase } from './data/dungeons';
+import { dungeonFx, dungeonOf, MAX_RISK, refillBoard, unlockedRisk } from './gen/dungeon';
 import { ENEMIES } from './data/enemies';
 import { EVENTS, type Fx, type Who } from './data/events';
 import { FACTION_IDS, FACTIONS } from './data/factions';
@@ -55,6 +56,8 @@ export interface SaveData {
   bonds: Record<string, Bond>;
   facilities: Record<FacilityId, number>;
   memorial: { enshrined: string[]; attempts: Record<string, number> };
+  board: string[];       // 탐사 게시판의 생성 던전 id
+  maxRisk: number;       // 정복한 최고 위험도
 }
 
 export interface BattleResult {
@@ -135,6 +138,8 @@ export function newGame(seed = freshSeed()): SaveData {
     bonds: {},
     facilities: { forge: 0, infirmary: 0, memorial: 0 },
     memorial: { enshrined: [], attempts: {} },
+    board: refillBoard([], 1, new Rng(mixSeed(seed, 'board'))),
+    maxRisk: 0,
   };
 }
 
@@ -144,6 +149,8 @@ export function migrate(d: SaveData): SaveData {
   d.bonds ??= {};
   d.facilities ??= { forge: 0, infirmary: 0, memorial: 0 };
   d.memorial ??= { enshrined: [], attempts: {} };
+  d.maxRisk ??= Math.max(0, ...d.cleared.map((id) => dungeonOf(id).risk));
+  d.board ??= refillBoard([], unlockedRisk(d.maxRisk), new Rng(mixSeed(d.createdAt ?? 1, 'board')));
   for (const f of FACTION_IDS) d.rep[f] ??= 0;
   d.lord.learned ??= [...LORD_START_SKILLS];
   d.lord.equipped ??= [...LORD_START_SKILLS];
@@ -347,7 +354,8 @@ export class Store {
 
   // ------------------------------------------------------------ 원정
   availableDungeons(): string[] {
-    return Object.values(DUNGEONS).filter((d) => !d.unlockAfter || this.s.cleared.includes(d.unlockAfter)).map((d) => d.id);
+    const fixed = Object.values(DUNGEONS).filter((d) => !d.unlockAfter || this.s.cleared.includes(d.unlockAfter)).map((d) => d.id);
+    return [...fixed, ...this.s.board];
   }
 
   canJoinParty(ch: Character): { ok: boolean; reason?: string } {
@@ -370,7 +378,7 @@ export class Store {
     for (const c of chars) c.cheatDeathUsed = false;
     this.s.run = {
       dungeon, seed, runNo: this.s.runNo,
-      nodes: generateMap(DUNGEONS[dungeon], seed),
+      nodes: generateMap(dungeonOf(dungeon), seed),
       current: null, visited: [], party: [...party],
       hp: Object.fromEntries(chars.map((c) => [c.id, computeStats(c).hp])),
       fallen: [], torch: 100, gold: 0, essence: 0, recruits: [], log: [],
@@ -407,7 +415,8 @@ export class Store {
     run.step++;
     run.current = nodeId;
     run.visited.push(nodeId);
-    run.torch = Math.max(0, run.torch - torchCost(party, run.relics));
+    const fx = dungeonFx(dungeonOf(run.dungeon));
+    run.torch = Math.max(0, run.torch - torchCost(party, run.relics, fx.torchMul));
     run.notice = undefined;
     const node = run.nodes.find((n) => n.id === nodeId)!;
     const rng = this.runRng('node');
@@ -427,7 +436,7 @@ export class Store {
         const lines: string[] = [];
         for (const c of party) {
           const max = computeStats(c).hp;
-          const pct = 0.35 + computeEffects(c).surviveBonus + (run.relics.includes('camp_kit') ? 0.25 : 0);
+          const pct = 0.35 + fx.restHeal + computeEffects(c).surviveBonus + (run.relics.includes('camp_kit') ? 0.25 : 0);
           const before = run.hp[c.id];
           run.hp[c.id] = Math.min(max, before + Math.round(max * pct));
           lines.push(`${fullName(c)} 체력 +${run.hp[c.id] - before}`);
@@ -439,9 +448,14 @@ export class Store {
         break;
       }
       case 'treasure': {
-        const gold = Math.round((40 + rng.int(0, 50) + node.layer * 10) * this.partyGoldMul(party));
+        const gold = Math.round((40 + rng.int(0, 50) + node.layer * 10 + levelBase(dungeonOf(run.dungeon)) * 8) * this.partyGoldMul(party) * fx.goldMul);
         run.gold += gold;
         const lines = [`금화 ${gold}을(를) 발견했다.`];
+        if (fx.curseOnTreasure && party.length && rng.chance(fx.curseOnTreasure)) {
+          const who = rng.pick(party);
+          const cur = rng.pick(CURSE_LIST.filter((t) => !who.curses.includes(t.id) && (!t.races || t.races.includes(who.race))));
+          if (cur) { who.curses.push(cur.id); lines.push(`저주받은 땅의 기운이 ${fullName(who)}에게 스며든다… 「${cur.name}」`); }
+        }
         if (rng.chance(0.55)) this.grantItem({ ilvl: itemLevel(run) }, rng, lines);
         if (rng.chance(0.3)) this.grantRelic(rng, lines);
         if (rng.chance(0.25)) { run.essence++; lines.push('잔해 속에서 빛나는 핵 조각을 찾았다!'); }
@@ -674,13 +688,61 @@ export class Store {
     this.save();
   }
 
+  // ------------------------------------------------------------ 탐사 게시판
+  unlockedRisk(): number {
+    return unlockedRisk(this.s.maxRisk);
+  }
+
+  boardRerollCost(): number {
+    return 30 * this.unlockedRisk();
+  }
+
+  /** 금화를 내고 탐사 지도를 새로 그린다 (free: 개발자 모드) */
+  rerollBoard(free = false): { ok: boolean; reason?: string } {
+    if (this.s.run) return { ok: false, reason: '원정 중에는 다시 탐색할 수 없다.' };
+    const cost = free ? 0 : this.boardRerollCost();
+    if (this.s.gold < cost) return { ok: false, reason: '금화가 부족하다.' };
+    this.s.gold -= cost;
+    this.s.board = refillBoard([], this.unlockedRisk(), new Rng(freshSeed()));
+    this.save();
+    return { ok: true };
+  }
+
+  /** 원정이 끝날 때마다: 정복한 곳은 지도에서 지우고, 한두 곳이 새로 바뀐다 */
+  private refreshBoardAfterRun(dungeon: string, cleared: boolean, seed: number): void {
+    const rng = new Rng(mixSeed(seed, 'board'));
+    const board = this.s.board.filter((id) => !(cleared && id === dungeon));
+    const swaps = 1 + (rng.chance(0.4) ? 1 : 0);
+    for (let i = 0; i < swaps && board.length > 1; i++) board.splice(rng.int(0, board.length - 1), 1);
+    this.s.board = refillBoard(board, this.unlockedRisk(), rng);
+  }
+
+  // ------------------------------------------------------------ 개발자 모드 (?dev)
+  devGrant(kind: 'gold' | 'essence' | 'facilities' | 'risk' | 'board'): string {
+    switch (kind) {
+      case 'gold': this.s.gold += 10000; break;
+      case 'essence': this.s.essence += 50; break;
+      case 'facilities':
+        for (const id of Object.keys(FACILITIES) as FacilityId[]) this.s.facilities[id] = FACILITIES[id].levels.length;
+        this.syncMemorial();
+        break;
+      case 'risk':
+        this.s.maxRisk = MAX_RISK - 1;
+        this.s.board = refillBoard([], this.unlockedRisk(), new Rng(freshSeed()));
+        break;
+      case 'board': return this.rerollBoard(true).reason ?? '탐사 지도를 새로 그렸다.';
+    }
+    this.save();
+    return { gold: '금화 +10,000', essence: '핵 조각 +50', facilities: '모든 시설 최대 단계', risk: `위험도 ☠${MAX_RISK}까지 해금` }[kind];
+  }
+
   // ------------------------------------------------------------ 거점 시설
   facilityLevel(id: FacilityId): number {
     return this.s.facilities[id] ?? 0;
   }
 
   restoration(): number {
-    return restorationPct(this.s.facilities, this.s.cleared.length, Object.keys(DUNGEONS).length, this.s.lord.level);
+    return restorationPct(this.s.facilities, this.s.maxRisk, MAX_RISK, this.s.lord.level);
   }
 
   buildFacility(id: FacilityId): { ok: boolean; reason?: string } {
@@ -946,7 +1008,8 @@ export class Store {
   battleFinished(res: BattleResult): RewardSummary {
     const run = this.s.run!;
     const spec = run.battle as BattleSpec;
-    const d = DUNGEONS[run.dungeon];
+    const d = dungeonOf(run.dungeon);
+    const dfx = dungeonFx(d);
     const node = run.nodes.find((n) => n.id === run.current);
     const where = `${d.name} ${node?.kind === 'boss' ? '보스의 방' : `${node ? node.layer + 1 : '?'}층`}`;
     const summary: RewardSummary = { gold: 0, essence: 0, exp: [], lines: [] };
@@ -983,10 +1046,11 @@ export class Store {
       exp += def.exp * (1 + 0.1 * (e.level - 1));
     }
     gold = Math.round(gold * spec.goldBonus * this.partyGoldMul(party));
+    exp *= dfx.expMul;
     run.gold += gold;
     summary.gold = gold;
-    if (spec.elite) { run.essence += 1; summary.essence += 1; }
-    if (spec.boss) { run.essence += 2; summary.essence += 2; }
+    if (spec.elite) { const n = 1 + dfx.eliteEssence; run.essence += n; summary.essence += n; }
+    if (spec.boss) { const n = 2 + dfx.bossEssence; run.essence += n; summary.essence += n; }
     if (spec.boss || spec.elite) {
       for (const c of party) {
         c.deeds ??= { boss: 0, elite: 0 };
@@ -1045,7 +1109,7 @@ export class Store {
     if (!run || run.fallen.some((f) => f.id === id)) return null;
     const c = this.char(id);
     if (!c) return null;
-    const d = DUNGEONS[run.dungeon];
+    const d = dungeonOf(run.dungeon);
     const node = run.nodes.find((n) => n.id === run.current);
     const at = where ?? `${d.name} ${node?.kind === 'boss' ? '보스의 방' : `${node ? node.layer + 1 : '?'}층`}`;
     run.hp[c.id] = 0;
@@ -1114,7 +1178,7 @@ export class Store {
     const run = this.s.run;
     if (!run) return { lines: [] };
     const lines: string[] = [];
-    const d = DUNGEONS[run.dungeon];
+    const d = dungeonOf(run.dungeon);
     const keep = run.outcome === 'victory' ? 1 : run.outcome === 'retreat' ? 0.5 : 0;
     const gold = Math.round(run.gold * keep);
     const essence = run.outcome === 'wipe' ? 0 : run.essence;
@@ -1126,6 +1190,10 @@ export class Store {
       if (!this.s.cleared.includes(run.dungeon)) {
         this.s.cleared.push(run.dungeon);
         lines.push(`「${d.name}」 최초 정복!`);
+      }
+      if (d.risk > this.s.maxRisk) {
+        this.s.maxRisk = d.risk;
+        if (d.risk < MAX_RISK) lines.push(`위험도 ${'☠'.repeat(d.risk + 1)} 던전이 탐사 지도에 나타나기 시작한다.`);
       }
       this.s.stats.victories++;
       this.addRep('kingdom', 5);
@@ -1157,6 +1225,7 @@ export class Store {
       if (c.dormant > 0 && !fallenNow.has(c.id)) c.dormant--;
       else if (c.dormant > 0 && fallenNow.has(c.id)) c.dormant = c.isLord ? 1 : DORMANT_RUNS;
     }
+    this.refreshBoardAfterRun(run.dungeon, run.outcome === 'victory', run.seed);
     this.s.run = null;
     this.save();
     return { lines };

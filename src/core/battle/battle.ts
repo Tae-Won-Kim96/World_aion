@@ -1,10 +1,10 @@
 import { CLASSES } from '../data/classes';
-import { DUNGEONS } from '../data/dungeons';
 import { ENEMIES } from '../data/enemies';
 import { RACES } from '../data/races';
 import { SKILLS } from '../data/skills';
 import type { BattleSpec, Darkness } from '../dungeon';
 import { bark, type Voice, voiceOf } from '../dialogue';
+import { dungeonOf } from '../gen/dungeon';
 import { adjacencyMul, pairKey, tierOf } from '../relations';
 import { Rng } from '../rng';
 import { computeEffects, computeStats, fullName } from '../stats';
@@ -163,7 +163,12 @@ export function createBattle(input: BattleInput): BattleState {
     relics: [...(input.relics ?? [])], spawnN: 0, bonusEssence: 0, bonusGold: 0, talkRng: new Rng((input.spec.seed ^ 0x5eed1e) >>> 0), opening: [],
   };
   const allies = input.party.filter((p) => p.hp > 0).map((p) => unitFromChar(p.char, p.hp, input.morale));
-  const enemies = input.spec.enemies.map((e, i) => unitFromEnemy(e.def, e.level, e.seed, i));
+  const enemies = input.spec.enemies.map((e, i) => {
+    const u = unitFromEnemy(e.def, e.level, e.seed, i);
+    if (e.name) u.name = e.name;
+    if (input.spec.enemyDmgMul) u.eff.dmgMul *= input.spec.enemyDmgMul;
+    return u;
+  });
 
   const rows = [1, 3, 5, 2, 4, 0, 6];
   allies.forEach((u, i) => {
@@ -190,7 +195,7 @@ export function createBattle(input: BattleInput): BattleState {
   st.units = [...allies, ...enemies];
 
   // 장애물: 중앙 지대에 배치하되 양 진영이 이어지도록
-  const theme = DUNGEONS[input.spec.theme]?.theme.obstacles ?? ['rubble'];
+  const theme = dungeonOf(input.spec.theme).theme.obstacles;
   const n = rng.int(4, 7);
   for (let i = 0; i < n * 3 && st.obstacles.length < n; i++) {
     const x = rng.int(2, GRID_W - 3);
@@ -217,6 +222,10 @@ export function createBattle(input: BattleInput): BattleState {
     if (has('wind_feather')) { u.statuses.push({ id: 'haste', turns: 2 }); u.ct += 20; }
   }
   if (input.spec.ambush) st.log.push('기습당했다! 적이 먼저 움직인다.');
+  if (input.spec.trapPct) {
+    for (const u of allies) u.hp = Math.max(1, u.hp - Math.round(u.maxHp * input.spec.trapPct));
+    st.log.push('함정이 발동했다! 모두가 상처를 입었다.');
+  }
   // 관계: 동료끼리의 점수
   const mates = st.units.filter((u) => u.side === 'ally' && u.charId);
   if (input.bonds) {

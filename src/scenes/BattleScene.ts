@@ -9,7 +9,7 @@ import {
   endTurn, findPath, moveUnit, performAction, reachableTiles, startTurn, STATUS_NAMES, BAD_STATUS, targetTiles, type Unit,
   dangerTiles, resolvePending,
 } from '../core/battle/battle';
-import { DUNGEONS } from '../core/data/dungeons';
+import { dungeonOf } from '../core/gen/dungeon';
 import { ENEMIES } from '../core/data/enemies';
 import { store, type BattleResult } from '../core/state';
 import type { FxKind } from '../core/types';
@@ -67,9 +67,9 @@ export class BattleScene extends Phaser.Scene {
     this.auto = false;
     this.active = null;
     this.inputMode = false;
-    const d = DUNGEONS[spec.theme] ?? DUNGEONS.necropolis;
+    const d = dungeonOf(spec.theme);
 
-    const bg = ensureBufTexture(this.textures, `dg_bg_${d.id}`, () => drawDungeonBackdrop(d.theme.sky[0], d.theme.sky[1], d.theme.floor[0], d.theme.accent));
+    const bg = ensureBufTexture(this.textures, `dg_bg_${d.id}`, () => drawDungeonBackdrop(d.theme.sky[0], d.theme.sky[1], d.theme.floor[0], d.theme.accent, d.risk * 7 + 3, d.theme.style));
     this.add.image(0, 0, bg).setOrigin(0).setScale(4).setAlpha(0.8);
     this.add.rectangle(GX - 10, GY - 10, this.st.w * TS + 20, this.st.h * TS + 20, 0x000000, 0.45).setOrigin(0);
 

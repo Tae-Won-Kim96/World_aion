@@ -261,8 +261,13 @@ export function drawFace(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void {
   let iris = hex(s.eye);
   let iris2 = hex(s.eye2 ?? s.eye);
   if (s.bound) { iris = mix(iris, BOUND_HI, 0.3); iris2 = mix(iris2, BOUND_HI, 0.3); }
-  drawEye(b, s, g, 10, iris, -1, glow);
-  drawEye(b, s, g, 20, iris2, 1, glow);
+  if (s.feat.oneEye) drawCyclopsEye(b, s, g, glow ?? iris);
+  else if (s.feat.manyEyes) drawManyEyes(b, s, g, glow ?? hex('#c8a8ff'));
+  else if (s.feat.frogEyes) drawFrogEyes(b, s, g, R, iris);
+  else {
+    drawEye(b, s, g, 10, iris, -1, glow);
+    drawEye(b, s, g, 20, iris2, 1, glow);
+  }
   // 코·주둥이·부리
   if (s.feat.beak) {
     const K = ramp('#e8a43a');
@@ -288,6 +293,74 @@ export function drawFace(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void {
       if (i % 2 === 0) { onSkin(b, R, xx - 1 + ox, y + 3 + i, st); onSkin(b, R, xx + 1 + ox, y + 3 + i, st); }
     }
   }
+}
+
+/** 외눈: 이마 가운데 큰 눈 하나 */
+function drawCyclopsEye(b: PixBuf, s: LookSpec, g: Geo, iris: RGBA): void {
+  const ox = g.ox;
+  const y = g.headTop + 7;
+  const P = (x: number, yy: number, c: RGBA) => b.set(x + ox, y + yy, c);
+  if (g.eyes === 'hurt') { for (let x = 13; x <= 18; x++) P(x, 2 + (x === 13 || x === 18 ? -1 : 0), D); return; }
+  for (let x = 13; x <= 18; x++) P(x, 0, D);
+  for (let x = 13; x <= 18; x++) { P(x, 1, WHITE); P(x, 2, WHITE); P(x, 3, WHITE); }
+  P(12, 1, D); P(19, 1, D); P(12, 2, D); P(19, 2, D);
+  for (let x = 14; x <= 17; x++) { P(x, 1, iris); P(x, 2, iris); }
+  P(15, 1, D); P(16, 1, D); P(15, 2, D); P(16, 2, darken(iris, 0.5));
+  P(14, 1, s.bound ? BOUND_HI : lighten(iris, 0.6));
+}
+
+/** 여러 개의 작은 눈 */
+function drawManyEyes(b: PixBuf, s: LookSpec, g: Geo, c: RGBA): void {
+  const ox = g.ox;
+  const y = g.headTop;
+  const spots: [number, number][] = [[10, 8], [20, 8], [15, 6], [12, 11], [19, 11], [17, 9], [9, 5], [22, 6]];
+  const n = 5 + (hashStr(s.key) % 4);
+  for (const [x, yy] of spots.slice(0, n)) {
+    b.set(x + ox, y + yy, g.eyes === 'hurt' ? D : c);
+    b.set(x + 1 + ox, y + yy, g.eyes === 'hurt' ? D : lighten(c, 0.5));
+  }
+}
+
+/** 개구리 눈: 정수리 양옆으로 솟은 둥근 눈 */
+function drawFrogEyes(b: PixBuf, s: LookSpec, g: Geo, R: Ramps, iris: RGBA): void {
+  const ox = g.ox;
+  const y = g.headTop;
+  for (const cx of [10.5, 20.5]) {
+    b.ellipse(cx + ox, y + 1, 2.5, 2.5, R.kr[2]);
+    b.set(Math.floor(cx) - 2 + ox, y + 2, R.kr[1]);
+    if (g.eyes === 'hurt') { b.hline(Math.floor(cx) - 1 + ox, Math.floor(cx) + 1 + ox, y + 1, D); continue; }
+    b.rect(Math.floor(cx) - 1 + ox, y, 3, 3, WHITE);
+    b.rect(Math.floor(cx) + ox, y, 2, 3, iris);
+    b.vline(Math.floor(cx) + ox, y, y + 2, D);
+  }
+  // 넓은 입
+  b.hline(11 + ox, 20 + ox, y + 12, darken(R.kr[2], 0.45));
+  b.set(10 + ox, y + 11, darken(R.kr[2], 0.45)); b.set(21 + ox, y + 11, darken(R.kr[2], 0.45));
+  void s;
+}
+
+/** 상자 머리 (미믹): 머리·얼굴·머리카락 대신 */
+export function drawChestHead(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void {
+  const ox = g.ox;
+  const y = g.headTop + 1;
+  const W = R.W;
+  const M = ramp('#8a8f98');
+  const open = g.eyes === 'hurt' ? 1 : g.armPose === 'up' ? 3 : 2;
+  // 몸통 상자
+  for (let i = 6; i <= 13; i++) { b.hline(8 + ox, 23 + ox, y + i, W[2]); b.set(8 + ox, y + i, W[3]); b.set(23 + ox, y + i, W[1]); }
+  b.hline(8 + ox, 23 + ox, y + 13, W[1]);
+  // 뚜껑 (열림)
+  for (let i = 0; i <= 3; i++) { b.hline(8 + ox, 23 + ox, y + i - open, i === 0 ? W[3] : W[2]); b.set(23 + ox, y + i - open, W[1]); }
+  // 쇠 띠
+  for (const x of [11, 20]) { b.vline(x + ox, y - open, y + 3 - open, M[2]); b.vline(x + ox, y + 6, y + 13, M[2]); }
+  b.rect(15 + ox, y + 6, 2, 2, hex('#e2b84a'));
+  // 입 속: 어둠, 이빨, 혀, 눈
+  for (let i = 4 - open; i <= 5; i++) b.hline(9 + ox, 22 + ox, y + i, hex('#1a0810'));
+  for (let x = 9; x <= 22; x += 2) { b.set(x + ox, y + 4 - open, WHITE); b.set(x + 1 + ox, y + 5, WHITE); }
+  b.hline(14 + ox, 17 + ox, y + 5, hex('#d04060'));
+  b.set(16 + ox, y + 6, hex('#d04060'));
+  const eye = hex(s.feat.glowEyes ?? '#ffdc4a');
+  b.set(12 + ox, y + 4 - open + 1, eye); b.set(19 + ox, y + 4 - open + 1, eye);
 }
 
 /** 피부 위에만 칠하기 (눈·입은 건드리지 않는다) */
@@ -663,6 +736,7 @@ export function drawHornsHalo(b: PixBuf, s: LookSpec, g: Geo): void {
     let c = s.race === 'imp' ? ramp('#7a2a2a') : lightHair ? ramp('#3a2e48') : ramp('#cbbfa4');
     if (h === 'bull' || h === 'curl') c = lightHair ? ramp('#6a5a48') : ramp('#d8ccb0');
     if (h === 'branch') c = ramp('#7a5a3a');
+    if (h === 'antennae') c = ramp(s.skin[1]);
     const B = (x: number, yy: number, col: RGBA) => both(b, x, yy, col, ox);
     switch (h) {
       case 'small':
@@ -675,6 +749,14 @@ export function drawHornsHalo(b: PixBuf, s: LookSpec, g: Geo): void {
         for (const [x, yy, k] of [[9, 3, 2], [8, 3, 2], [7, 3, 2], [6, 2, 3], [5, 2, 2], [5, 1, 3], [4, 0, 3], [4, -1, 4]] as [number, number, number][]) B(x, y + yy, c[k]);
         B(8, y + 4, c[1]); B(7, y + 4, c[1]);
         break;
+      case 'antennae': {
+        const a = ramp(s.skin[1]);
+        for (const [x, dir] of [[12, -1], [19, 1]] as [number, number][]) {
+          b.set(x + ox, y, a[1]); b.set(x + ox, y - 1, a[1]); b.set(x + dir + ox, y - 2, a[2]); b.set(x + dir + ox, y - 3, a[2]);
+          b.set(x + 2 * dir + ox, y - 4, a[2]); b.set(x + 2 * dir + ox, y - 5, a[3]); b.set(x + 3 * dir + ox, y - 5, a[3]);
+        }
+        break;
+      }
       case 'branch': {
         const leaf = hex('#6ab04a');
         B(10, y + 1, c[2]); B(10, y, c[2]); B(9, y - 1, c[2]); B(9, y - 2, c[3]); B(8, y - 3, c[3]); B(10, y - 2, c[2]); B(11, y - 3, c[3]);

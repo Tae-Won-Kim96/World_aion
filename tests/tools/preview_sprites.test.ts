@@ -19,9 +19,10 @@ test.skipIf(!process.env.PREVIEW_OUT)('preview sprites', () => {
   writePng(`${OUT}/sprites_chars.png`, sheet.w, sheet.h, sheet.data, 4, hex('#2a2438'));
 
   const ens = Object.values(ENEMIES);
-  const es = new PixBuf(ens.length * FRAME_W, FRAME_H);
-  ens.forEach((e, i) => es.blit(drawFrame(lookFromEnemy(e, 3), 'idle0'), i * FRAME_W, 0));
-  writePng(`${OUT}/sprites_enemies.png`, es.w, es.h, es.data, 4, hex('#2a2438'));
+  const COLS = 20;
+  const es = new PixBuf(COLS * FRAME_W, Math.ceil(ens.length / COLS) * FRAME_H);
+  ens.forEach((e, i) => es.blit(drawFrame(lookFromEnemy(e, 3), 'idle0'), (i % COLS) * FRAME_W, Math.floor(i / COLS) * FRAME_H));
+  writePng(`${OUT}/sprites_enemies.png`, es.w, es.h, es.data, 2, hex('#2a2438'));
 
   const ch = generateCharacter(424242, { now: 0, star: 4 });
   const sh = drawSheet(lookFromCharacter(ch));

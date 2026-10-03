@@ -6,9 +6,9 @@ import { darken, desaturate, hex, lighten, mix, ramp, type RGBA, withAlpha } fro
 import type { LookSpec } from './look';
 import { PixBuf } from './pixbuf';
 import { drawFaceAccessories, drawOrnaments, drawScarf } from './parts/accessory';
-import { drawCape, drawLeftArm, drawLegs, drawRightArm, drawTail, drawTorso, drawWings } from './parts/body';
+import { drawCape, drawLeftArm, drawLegs, drawRightArm, drawSerpentCoil, drawTail, drawTorso, drawWings } from './parts/body';
 import { FRAME_H, FRAME_W, geometry, type Pose, POSES, type Ramp, type Ramps } from './parts/common';
-import { applySkinPattern, drawBackHair, drawBeard, drawFace, drawFrontHair, drawHeadShape, drawHornsHalo, drawSideEars, drawTopEars } from './parts/head';
+import { applySkinPattern, drawBackHair, drawBeard, drawChestHead, drawFace, drawFrontHair, drawHeadShape, drawHornsHalo, drawSideEars, drawTopEars } from './parts/head';
 import { coversFace, drawHeadgear } from './parts/headgear';
 import { drawOffhand, drawWeapon } from './parts/weapons';
 
@@ -55,22 +55,28 @@ export function drawFrame(spec: LookSpec, pose: Pose): PixBuf {
   drawTail(b, spec, g, R);
   drawLegs(b, spec, g, R);
   drawTorso(b, spec, g, R);
+  drawSerpentCoil(b, spec, g);
   drawScarf(b, spec, g, R);
   drawLeftArm(b, spec, g, R);
   drawOffhand(b, spec, g, R);
-  drawHeadShape(b, spec, g, R);
-  applySkinPattern(b, spec, g, R);
-  drawSideEars(b, spec, g, R);
-  if (!hideFace) {
-    drawFace(b, spec, g, R);
-    drawFaceAccessories(b, spec, g, R);
-    drawBeard(b, spec, g, R);
-    drawFrontHair(b, spec, g, R);
+  if (spec.feat.chestHead) {
+    applySkinPattern(b, spec, g, R);
+    drawChestHead(b, spec, g, R);
+  } else {
+    drawHeadShape(b, spec, g, R);
+    applySkinPattern(b, spec, g, R);
+    drawSideEars(b, spec, g, R);
+    if (!hideFace) {
+      drawFace(b, spec, g, R);
+      drawFaceAccessories(b, spec, g, R);
+      drawBeard(b, spec, g, R);
+      drawFrontHair(b, spec, g, R);
+    }
+    drawTopEars(b, spec, g, R);
+    drawHeadgear(b, spec, g, R);
+    drawHornsHalo(b, spec, g);
+    drawOrnaments(b, spec, g, R);
   }
-  drawTopEars(b, spec, g, R);
-  drawHeadgear(b, spec, g, R);
-  drawHornsHalo(b, spec, g);
-  drawOrnaments(b, spec, g, R);
   drawRightArm(b, spec, g, R);
   drawWeapon(b, spec, g, R);
 

@@ -1,4 +1,5 @@
 import type { HeadgearKind, OffhandKind, OutfitKind, RaceId, Stats, StatusApply, WeaponKind } from '../types';
+import { EXT_ENEMIES } from './enemies_ext';
 
 /** 체력이 at 비율 이하로 떨어지면 1회 발동 */
 export interface PhaseDef {
@@ -32,6 +33,7 @@ export interface EnemyDef {
   boss?: boolean;
   scale?: number;
   phases?: PhaseDef[];
+  title?: string;          // 생성 던전에서 보스 이름 앞에 붙는 칭호
 }
 
 const E = (e: EnemyDef) => e;
@@ -99,5 +101,6 @@ export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
       look: { weapon: 'fist', outfit: 'rags', head: 'none', palette: ['#4a4038', '#6a5a4a'] }, exp: 0, gold: 0, scale: 0.8 }),
     E({ id: 'tamed_wolf', name: '길들인 늑대', race: 'wolfkin', cls: 'berserker', mul: { hp: 0.6, atk: 0.85, spd: 1.15 }, skills: ['blood_frenzy'], tags: ['beast', 'summon'],
       look: { weapon: 'fist', outfit: 'fur', head: 'none', palette: ['#6a6a72', '#3a3a44'] }, exp: 0, gold: 0 }),
+    ...EXT_ENEMIES,
   ].map((e) => [e.id, e]),
 );

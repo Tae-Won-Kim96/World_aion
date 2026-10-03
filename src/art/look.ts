@@ -144,7 +144,7 @@ function buildLook(i: LookInput): LookSpec {
   const eye = randomEye(rng, feat.eyeColors);
   const eye2 = rng.chance(0.04) ? randomEye(rng) : undefined;
   const hairStyle: HairStyle = feat.bald ? 'bald' : pickHairStyle(rng, i.gender, i.race);
-  const eyeStyle: EyeStyle = feat.slitEyes ? 'slit' : rng.weighted(Object.keys(EYE_W) as EyeStyle[], (e) => EYE_W[e]);
+  const eyeStyle: EyeStyle = feat.forceEye ?? (feat.slitEyes ? 'slit' : rng.weighted(Object.keys(EYE_W) as EyeStyle[], (e) => EYE_W[e]));
   const mouth: MouthStyle = feat.fangs ? 'fang' : rng.weighted(Object.keys(MOUTH_W) as MouthStyle[], (m) => MOUTH_W[m] + (m === 'cat' && ['catkin', 'foxkin'].includes(i.race) ? 20 : 0));
   const build: Build = rng.weighted<Build>(['slim', 'normal', 'broad'], (b) => (b === 'broad' ? (c.role === 'tank' ? 45 : 18) : b === 'slim' ? (c.role === 'caster' ? 40 : 28) : 50));
   const house = i.house ? HOUSES[i.house] : undefined;

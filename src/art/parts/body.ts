@@ -27,6 +27,21 @@ export function drawWings(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void {
     mirror(root - 3, top + 3, hex('#ffffff', 230)); mirror(root - 2, top + 11, hex('#ffffff', 230));
     return;
   }
+  if (kind === 'insect') {
+    // 투명한 곤충 날개 두 쌍 + 시맥
+    const top = g.torsoTop - 7;
+    const film = withAlpha(lighten(hex(s.skin[2]), 0.5), 120);
+    const vein = withAlpha(darken(hex(s.skin[1]), 0.2), 200);
+    for (let i = 0; i < 10; i++) {
+      const w = [2, 3, 5, 6, 7, 7, 6, 5, 3, 2][i];
+      for (let j = 0; j < w; j++) mirror(root - j, top + i, j === w - 1 || j % 3 === 2 ? vein : film);
+    }
+    for (let i = 0; i < 6; i++) {
+      const w = [2, 4, 5, 5, 4, 2][i];
+      for (let j = 0; j < w; j++) mirror(root - j, top + 11 + i, j === w - 1 ? vein : film);
+    }
+    return;
+  }
   const feather = kind === 'feather' || kind === 'bird';
   const small = kind === 'small_bat';
   const r: Ramp = kind === 'bird' ? R.hr : feather ? ramp('#f4f1ff') : ramp(small ? s.skin[1] : '#3a2a44');
@@ -129,6 +144,30 @@ export function drawLegs(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void {
     b.hline(11, 15, footY, S[3]); b.hline(16, 20, footY, S[3]); b.hline(12, 19, footY - 1, S[2]);
     return;
   }
+  if (s.feat.legs === 'serpent') {
+    // 뱀 꼬리: 아래로 흐르다 옆으로 똬리
+    // 비늘색: 머리색 계열을 짙은 초록 쪽으로
+    const S = ramp(mix(hex(s.hair), hex('#2f6a3a'), 0.45));
+    const belly = mix(S[3], hex('#f0e0b0'), 0.5);
+    for (let y = legTop; y <= footY - 2; y++) {
+      const k = Math.max(3, 5 - Math.floor((y - legTop) / 3));
+      span(b, k, y, (y - legTop) % 2 ? S[1] : S[2]);
+      b.set(16 - k, y, S[3]);
+      b.hline(15, 16, y, belly);
+    }
+    return;
+  }
+  if (s.feat.legs === 'ghost') {
+    // 다리 대신 흩어지는 안개 꼬리
+    const S = ramp(s.skin[0]);
+    for (let y = legTop; y <= footY; y++) {
+      const d = y - legTop;
+      const k = Math.max(1, 4 - Math.floor(d / 2));
+      const sway = Math.round(Math.sin(d * 0.9) * 1.2);
+      span(b, k, y, withAlpha(d % 2 ? S[2] : S[3], 230 - d * 18), sway);
+    }
+    return;
+  }
   if (o === 'bone') {
     for (const x of [13, 18]) { b.vline(x, legTop, footY - 1, BONE[2]); b.set(x, legTop + 2, BONE[3]); }
     b.hline(12, 14, footY, BONE[1]); b.hline(17, 19, footY, BONE[1]);
@@ -164,6 +203,20 @@ export function drawLegs(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void {
 function darkCloth(c: string): string {
   const v = hex(c);
   return `#${((darken(v, 0.45) >>> 8) & 0xffffff).toString(16).padStart(6, '0')}`;
+}
+
+/** 뱀 꼬리의 똬리: 치마에 가리지 않도록 몸통 다음에 그린다 */
+export function drawSerpentCoil(b: PixBuf, s: LookSpec, g: Geo): void {
+  if (s.feat.legs !== 'serpent') return;
+  const S = ramp(mix(hex(s.hair), hex('#2f6a3a'), 0.45));
+  const y0 = g.footY - 1;
+  for (let i = 0; i < 16; i++) {
+    const x = 9 + i;
+    const lift = i > 11 ? i - 11 : 0;
+    const yy = y0 - lift;
+    b.set(x, yy - 1, i % 2 ? S[2] : S[3]); b.set(x, yy, S[1]); b.set(x, yy + 1, S[0]);
+  }
+  b.set(25, y0 - 6, S[3]); b.set(26, y0 - 7, S[2]); b.set(26, y0 - 8, S[3]);
 }
 
 // =============================================================== 몸통 (의상)

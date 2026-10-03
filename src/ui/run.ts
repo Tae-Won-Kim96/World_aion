@@ -1,7 +1,7 @@
 import { lookFromCharacter } from '../art/look';
 import { bufUrl, spriteEl } from '../art/registry';
 import { drawNodeIcon } from '../art/tiles';
-import { DUNGEONS } from '../core/data/dungeons';
+import { dungeonOf } from '../core/gen/dungeon';
 import { EVENTS } from '../core/data/events';
 import { condMatch, DARKNESS_NAMES, darkness, NODE_NAMES, reachable, type RunState } from '../core/dungeon';
 import { mixSeed, Rng } from '../core/rng';
@@ -14,7 +14,7 @@ import { hpBar, itemRow, relicIcon, starsEl } from './widgets';
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 function topBar(run: RunState): HTMLElement {
-  const d = DUNGEONS[run.dungeon];
+  const d = dungeonOf(run.dungeon);
   const node = run.nodes.find((n) => n.id === run.current);
   const dk = darkness(run.torch);
   const party = store.partyChars();
@@ -65,7 +65,7 @@ function mapView(run: RunState): HTMLElement {
   const wrap = h('div', { class: 'map-wrap' });
   const W = 750;
   const H = 640;
-  const L = DUNGEONS[run.dungeon].floors;
+  const L = dungeonOf(run.dungeon).floors;
   const rng = new Rng(mixSeed(run.seed, 'layout'));
   const pos = new Map<string, { x: number; y: number }>();
   for (const n of run.nodes) {
@@ -209,7 +209,7 @@ function showResult(run: RunState): void {
   const title = run.outcome === 'victory' ? '정복!' : run.outcome === 'retreat' ? '퇴각' : '전멸';
   const keep = run.outcome === 'victory' ? 1 : run.outcome === 'retreat' ? 0.5 : 0;
   const lines: string[] = [];
-  if (run.outcome === 'victory') lines.push(`「${DUNGEONS[run.dungeon].name}」의 주인을 쓰러뜨렸다.`);
+  if (run.outcome === 'victory') lines.push(`「${dungeonOf(run.dungeon).name}」의 주인을 쓰러뜨렸다.`);
   if (run.outcome === 'wipe') lines.push('원정대가 모두 쓰러졌다. 모은 전리품은 어둠 속에 남겨졌다.');
   if (run.outcome === 'retreat') lines.push('살아남은 자들이 짐을 챙겨 거점으로 돌아간다.');
   lines.push(`가져갈 금화: ${Math.round(run.gold * keep)} / ${run.gold}`);
