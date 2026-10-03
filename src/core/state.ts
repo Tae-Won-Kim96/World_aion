@@ -3,6 +3,7 @@ import { DUNGEONS } from './data/dungeons';
 import { ENEMIES } from './data/enemies';
 import { EVENTS, type Fx, type Who } from './data/events';
 import { FACTION_IDS, FACTIONS } from './data/factions';
+import { RACES } from './data/races';
 import { RELICS, RELIC_IDS } from './data/relics';
 import { SKILLS } from './data/skills';
 import { BLESSING_LIST, CURSE_LIST, TRAITS } from './data/traits';
@@ -15,10 +16,16 @@ import { pull, PULL10_COST, PULL_COST, ROSTER_CAP, type Pity } from './gacha';
 import { generateCharacter } from './gen/character';
 import { generateItem, type ItemGenOpts, itemValue } from './gen/item';
 import { freshSeed, mixSeed, Rng } from './rng';
-import { computeEffects, computeStats, expToNext, fullName, levelCap, partySynergy } from './stats';
+import { computeEffects, computeStats, expToNext, fullName, levelCap, partySynergy, setEnshrined } from './stats';
 import type { Character, FactionId, GearSlot, Grave, Item, Star } from './types';
 import { applyBind, canBind, DORMANT_RUNS, lordExpFromBind, lordExpToNext, bindCost, bindSlots } from './bond';
 import { campTalk } from './dialogue';
+import { type FacilityId, FACILITIES } from './data/facilities';
+import {
+  cureCost, DORMANCY_COST, ENHANCE_CHANCE, enhanceCost, isMeritorious, MAX_PLUS_BY_LEVEL, MEMORIAL_SLOTS, meritOf,
+  purgeCost, REZ, rerollCost, restorationPct, rezChance, SALVAGE_BONUS, SLIP_FROM,
+} from './facilities';
+import { displayName, rerollAffixes } from './gen/item';
 import { baseBond, type Bond, bondMorale, bondScore, clampBond, pairKey, pushNote, tierOf, TIER_NAMES } from './relations';
 
 export const SAVE_KEY = 'world_aion_save_v1';
@@ -46,6 +53,8 @@ export interface SaveData {
   stats: { deaths: number; turned: number; victories: number; runs: number; recruited: number };
   stash: Item[];
   bonds: Record<string, Bond>;
+  facilities: Record<FacilityId, number>;
+  memorial: { enshrined: string[]; attempts: Record<string, number> };
 }
 
 export interface BattleResult {
@@ -124,6 +133,8 @@ export function newGame(seed = freshSeed()): SaveData {
     stats: { deaths: 0, turned: 0, victories: 0, runs: 0, recruited: 0 },
     stash: [],
     bonds: {},
+    facilities: { forge: 0, infirmary: 0, memorial: 0 },
+    memorial: { enshrined: [], attempts: {} },
   };
 }
 
@@ -131,6 +142,8 @@ export function newGame(seed = freshSeed()): SaveData {
 export function migrate(d: SaveData): SaveData {
   d.stash ??= [];
   d.bonds ??= {};
+  d.facilities ??= { forge: 0, infirmary: 0, memorial: 0 };
+  d.memorial ??= { enshrined: [], attempts: {} };
   for (const f of FACTION_IDS) d.rep[f] ??= 0;
   d.lord.learned ??= [...LORD_START_SKILLS];
   d.lord.equipped ??= [...LORD_START_SKILLS];
@@ -155,6 +168,13 @@ export class Store {
 
   constructor(data?: SaveData) {
     this.s = migrate(data ?? this.load() ?? newGame());
+    this.syncMemorial();
+  }
+
+  /** 봉안된 영웅 목록을 능력치 계산에 등록 */
+  syncMemorial(): void {
+    const ids = new Set(this.s.memorial.enshrined);
+    setEnshrined(this.s.graveyard.filter((g) => ids.has(g.char.id)).map((g) => g.char));
   }
 
   // ------------------------------------------------------------ 기본
@@ -184,6 +204,7 @@ export class Store {
 
   reset(): void {
     this.s = newGame();
+    this.syncMemorial();
     this.save();
   }
 
@@ -505,7 +526,7 @@ export class Store {
     let gold = 0;
     this.s.stash = this.s.stash.filter((it) => {
       if (!itemIds.includes(it.id)) return true;
-      gold += itemValue(it);
+      gold += this.salvageValue(it);
       return false;
     });
     this.s.gold += gold;
@@ -653,6 +674,194 @@ export class Store {
     this.save();
   }
 
+  // ------------------------------------------------------------ 거점 시설
+  facilityLevel(id: FacilityId): number {
+    return this.s.facilities[id] ?? 0;
+  }
+
+  restoration(): number {
+    return restorationPct(this.s.facilities, this.s.cleared.length, Object.keys(DUNGEONS).length, this.s.lord.level);
+  }
+
+  buildFacility(id: FacilityId): { ok: boolean; reason?: string } {
+    const lv = this.facilityLevel(id);
+    const next = FACILITIES[id].levels[lv];
+    if (!next) return { ok: false, reason: '이미 최고 단계다.' };
+    if (this.s.gold < next.gold) return { ok: false, reason: '금화가 부족하다.' };
+    if (this.s.essence < next.shards) return { ok: false, reason: '핵 조각이 부족하다.' };
+    this.s.gold -= next.gold;
+    this.s.essence -= next.shards;
+    this.s.facilities[id] = lv + 1;
+    this.news(lv === 0 ? `${FACILITIES[id].name}이(가) 다시 문을 열었다.` : `${FACILITIES[id].name}을(를) ${lv + 1}단계로 증축했다.`);
+    this.save();
+    return { ok: true };
+  }
+
+  salvageValue(it: Item): number {
+    return Math.round(itemValue(it) * (1 + SALVAGE_BONUS[this.facilityLevel('forge')]));
+  }
+
+  /** 창고와 모든 동료의 장비에서 찾기 */
+  findItem(itemId: string): { item: Item; owner?: Character } | null {
+    const it = this.s.stash.find((i) => i.id === itemId);
+    if (it) return { item: it };
+    for (const c of [this.s.lordChar, ...this.s.roster]) {
+      for (const g of Object.values(c.gear ?? {})) if (g?.id === itemId) return { item: g, owner: c };
+    }
+    return null;
+  }
+
+  enhanceItem(itemId: string, roll = Math.random()): { ok: boolean; reason?: string; success?: boolean; slipped?: boolean; plus?: number } {
+    if (this.s.run) return { ok: false, reason: '원정 중에는 대장간을 쓸 수 없다.' };
+    const f = this.findItem(itemId);
+    if (!f) return { ok: false, reason: '장비가 없다.' };
+    const it = f.item;
+    const p = it.plus ?? 0;
+    if (p >= MAX_PLUS_BY_LEVEL[this.facilityLevel('forge')]) return { ok: false, reason: '대장간 단계가 부족하다.' };
+    if (p >= 10) return { ok: false, reason: '더 이상 강화할 수 없다.' };
+    const cost = enhanceCost(it);
+    if (this.s.gold < cost) return { ok: false, reason: '금화가 부족하다.' };
+    this.s.gold -= cost;
+    const success = roll < ENHANCE_CHANCE[p];
+    let slipped = false;
+    if (success) it.plus = p + 1;
+    else if (p >= SLIP_FROM) { it.plus = p - 1; slipped = true; }
+    it.name = displayName(it);
+    this.save();
+    return { ok: true, success, slipped, plus: it.plus ?? 0 };
+  }
+
+  rerollItem(itemId: string): { ok: boolean; reason?: string } {
+    if (this.s.run) return { ok: false, reason: '원정 중에는 대장간을 쓸 수 없다.' };
+    if (this.facilityLevel('forge') < 2) return { ok: false, reason: '대장간 2단계가 필요하다.' };
+    const f = this.findItem(itemId);
+    if (!f) return { ok: false, reason: '장비가 없다.' };
+    if (f.item.rarity === 1 || f.item.rarity === 4) return { ok: false, reason: '고급·희귀 장비만 재련할 수 있다.' };
+    const cost = rerollCost(f.item);
+    if (this.s.gold < cost) return { ok: false, reason: '금화가 부족하다.' };
+    this.s.gold -= cost;
+    const next = rerollAffixes(f.item, freshSeed());
+    Object.assign(f.item, { affixes: next.affixes, name: next.name });
+    this.save();
+    return { ok: true };
+  }
+
+  purgeCurse(charId: string, curseId: string): { ok: boolean; reason?: string } {
+    if (this.facilityLevel('infirmary') < 1) return { ok: false, reason: '치유소가 없다.' };
+    const c = this.char(charId);
+    if (!c || !c.curses.includes(curseId)) return { ok: false, reason: '그런 저주는 없다.' };
+    const cost = purgeCost(c);
+    if (this.s.gold < cost) return { ok: false, reason: '금화가 부족하다.' };
+    this.s.gold -= cost;
+    c.curses = c.curses.filter((x) => x !== curseId);
+    this.save();
+    return { ok: true };
+  }
+
+  cureTrait(charId: string, traitId: string): { ok: boolean; reason?: string } {
+    if (this.facilityLevel('infirmary') < 2) return { ok: false, reason: '치유소 2단계가 필요하다.' };
+    const c = this.char(charId);
+    if (!c || !c.traits.includes(traitId) || TRAITS[traitId]?.polarity !== -1) return { ok: false, reason: '치료할 수 있는 특성이 아니다.' };
+    const cost = cureCost(c);
+    if (this.s.gold < cost.gold || this.s.essence < cost.shards) return { ok: false, reason: '비용이 부족하다.' };
+    this.s.gold -= cost.gold;
+    this.s.essence -= cost.shards;
+    c.traits = c.traits.filter((x) => x !== traitId);
+    this.save();
+    return { ok: true };
+  }
+
+  shortenDormancy(charId: string): { ok: boolean; reason?: string } {
+    if (this.facilityLevel('infirmary') < 3) return { ok: false, reason: '치유소 3단계가 필요하다.' };
+    const c = this.char(charId);
+    if (!c || c.dormant <= 0) return { ok: false, reason: '휴면 중이 아니다.' };
+    if (this.s.gold < DORMANCY_COST.gold || this.s.essence < DORMANCY_COST.shards) return { ok: false, reason: '비용이 부족하다.' };
+    this.s.gold -= DORMANCY_COST.gold;
+    this.s.essence -= DORMANCY_COST.shards;
+    c.dormant--;
+    this.save();
+    return { ok: true };
+  }
+
+  memorialSlots(): number {
+    return MEMORIAL_SLOTS[this.facilityLevel('memorial')];
+  }
+
+  enshrine(graveCharId: string): { ok: boolean; reason?: string } {
+    const g = this.s.graveyard.find((x) => x.char.id === graveCharId);
+    if (!g) return { ok: false, reason: '묘지에 없다.' };
+    if (this.s.memorial.enshrined.includes(graveCharId)) return { ok: false, reason: '이미 봉안되었다.' };
+    if (!isMeritorious(g.char)) return { ok: false, reason: `공적이 부족하다. (Lv.${12} 이상, 또는 보스 토벌 1회·정예 토벌 3회)` };
+    if (this.s.memorial.enshrined.length >= this.memorialSlots()) return { ok: false, reason: '추모비에 빈자리가 없다.' };
+    this.s.memorial.enshrined.push(graveCharId);
+    this.syncMemorial();
+    this.news(`${fullName(g.char)}의 이름이 추모비에 새겨졌다.`);
+    this.save();
+    return { ok: true };
+  }
+
+  unenshrine(graveCharId: string): void {
+    this.s.memorial.enshrined = this.s.memorial.enshrined.filter((x) => x !== graveCharId);
+    this.syncMemorial();
+    this.save();
+  }
+
+  /** 소생 의식 조건 (모두 만족해야 한다) */
+  resurrectionCheck(graveCharId: string, sacrificeId?: string): { ok: boolean; reasons: string[]; chance: number } {
+    const reasons: string[] = [];
+    const g = this.s.graveyard.find((x) => x.char.id === graveCharId);
+    const attempts = this.s.memorial.attempts[graveCharId] ?? 0;
+    if (!g) return { ok: false, reasons: ['묘지에 없다.'], chance: 0 };
+    if (this.facilityLevel('memorial') < 3) reasons.push('추모비 3단계가 필요하다.');
+    if (!this.s.memorial.enshrined.includes(graveCharId)) reasons.push('추모비에 봉안된 영웅만 부를 수 있다.');
+    if (meritOf(g.char) < REZ.merit) reasons.push(`공적 ${meritOf(g.char)}/${REZ.merit} — 더 큰 업적을 남긴 자만 돌아올 수 있다.`);
+    if (!RACES[g.char.race].canBind) reasons.push(`${RACES[g.char.race].name}은(는) 세계핵이 받아들이지 않는다.`);
+    if (this.s.gold < REZ.gold) reasons.push(`금화 ${REZ.gold} 필요`);
+    if (this.s.essence < REZ.shards) reasons.push(`핵 조각 ${REZ.shards} 필요`);
+    const sac = sacrificeId ? this.char(sacrificeId) : undefined;
+    if (!sac) reasons.push('살아 있는 동료 한 명을 제물로 바쳐야 한다.');
+    else {
+      if (sac.isLord) reasons.push('지휘관은 제물이 될 수 없다.');
+      if (sac.star < g.char.star) reasons.push(`제물은 ★${g.char.star} 이상이어야 한다.`);
+      if (this.s.run?.party.includes(sac.id)) reasons.push('원정 중인 동료는 바칠 수 없다.');
+    }
+    if (this.s.run) reasons.push('원정 중에는 의식을 치를 수 없다.');
+    return { ok: reasons.length === 0, reasons, chance: rezChance(attempts) };
+  }
+
+  /** 소생 의식: 실패해도 비용과 제물은 돌아오지 않는다. 성공하면 세계핵에 결속된 채로 돌아온다. */
+  resurrect(graveCharId: string, sacrificeId: string): { ok: boolean; reasons?: string[]; success?: boolean; line?: string } {
+    const chk = this.resurrectionCheck(graveCharId, sacrificeId);
+    if (!chk.ok) return { ok: false, reasons: chk.reasons };
+    const g = this.s.graveyard.find((x) => x.char.id === graveCharId)!;
+    const sac = this.char(sacrificeId)!;
+    const attempts = this.s.memorial.attempts[graveCharId] ?? 0;
+    this.s.gold -= REZ.gold;
+    this.s.essence -= REZ.shards;
+    this.s.memorial.attempts[graveCharId] = attempts + 1;
+    this.bury(sac, '추모비의 제물', '거점 추모비');
+    const success = new Rng(mixSeed(g.char.seed, `rez_${attempts}`)).next() < chk.chance;
+    let line: string;
+    if (success) {
+      this.s.graveyard = this.s.graveyard.filter((x) => x !== g);
+      this.s.memorial.enshrined = this.s.memorial.enshrined.filter((x) => x !== graveCharId);
+      const ch = g.char;
+      ch.dormant = 0;
+      ch.cheatDeathUsed = false;
+      ch.resurrected = (ch.resurrected ?? 0) + 1;
+      if (!ch.vampire) applyBind(ch);
+      this.s.roster.push(ch);
+      this.s.stats.turned++;
+      line = `${fullName(ch)}이(가) 세계핵의 빛 속에서 다시 눈을 떴다. ${sac.given}의 이름이 대신 묘비에 새겨졌다.`;
+    } else {
+      line = `의식은 실패했다. ${fullName(g.char)}은(는) 돌아오지 않았고, ${sac.given}만이 묘지로 갔다.`;
+    }
+    this.news(line);
+    this.syncMemorial();
+    this.save();
+    return { ok: true, success, line };
+  }
+
   // ------------------------------------------------------------ 관계
   bondOf(a: string, b: string): Bond {
     const k = pairKey(a, b);
@@ -778,6 +987,13 @@ export class Store {
     summary.gold = gold;
     if (spec.elite) { run.essence += 1; summary.essence += 1; }
     if (spec.boss) { run.essence += 2; summary.essence += 2; }
+    if (spec.boss || spec.elite) {
+      for (const c of party) {
+        c.deeds ??= { boss: 0, elite: 0 };
+        if (spec.boss) c.deeds.boss++;
+        else c.deeds.elite++;
+      }
+    }
     if (res.bonusEssence) { run.essence += res.bonusEssence; summary.essence += res.bonusEssence; }
     if (res.bonusGold) { run.gold += res.bonusGold; summary.gold += res.bonusGold; summary.lines.push(`전투 중 챙긴 금화 +${res.bonusGold}`); }
     // 전리품

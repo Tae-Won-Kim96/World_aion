@@ -5,6 +5,12 @@ import { ensureBufTexture, ensureSheetTexture } from '../art/registry';
 import { store } from '../core/state';
 import { idleAnim } from './anims';
 
+/** 거점 풍경을 다시 그려야 하는 변화 (동료·결속·시설·묘비) */
+function townSignature(): string {
+  const f = store.s.facilities;
+  return `${store.s.roster.map((c) => c.id + (c.vampire ? 'v' : '')).join(',')}|${f.forge}${f.infirmary}${f.memorial}|${Math.min(store.s.graveyard.length, 18)}`;
+}
+
 export class TownScene extends Phaser.Scene {
   private unsub: (() => void) | null = null;
   private signature = '';
@@ -15,7 +21,8 @@ export class TownScene extends Phaser.Scene {
 
   create(): void {
     const graves = store.s.graveyard.length;
-    const bgKey = ensureBufTexture(this.textures, `town_bg_${Math.min(graves, 18)}`, () => drawTownBackdrop(graves));
+    const fac = store.s.facilities;
+    const bgKey = ensureBufTexture(this.textures, `town_bg_${Math.min(graves, 18)}_${fac.forge}${fac.infirmary}${fac.memorial}`, () => drawTownBackdrop(graves, fac));
     this.add.image(0, 0, bgKey).setOrigin(0).setScale(4);
 
     // 반딧불
@@ -31,7 +38,7 @@ export class TownScene extends Phaser.Scene {
       ls.play(idleAnim(this, lordKey, 1.6));
     }
     const chars = [...store.s.roster].filter((c) => c.dormant === 0).sort(() => Math.random() - 0.5).slice(0, 9);
-    this.signature = store.s.roster.map((c) => c.id + (c.vampire ? 'v' : '')).join(',');
+    this.signature = townSignature();
     chars.forEach((c) => {
       const spec = lookFromCharacter(c);
       const key = ensureSheetTexture(this.textures, spec);
@@ -51,7 +58,7 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.unsub = store.onChange(() => {
-      const sig = store.s.roster.map((c) => c.id + (c.vampire ? 'v' : '')).join(',');
+      const sig = townSignature();
       if (sig === this.signature || !this.scene.isActive()) return;
       // 다음 프레임에 확인: 그 사이 다른 씬으로 전환됐다면(시계가 정지됨) 재시작하지 않는다
       this.time.delayedCall(0, () => {

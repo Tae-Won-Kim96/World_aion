@@ -23,7 +23,9 @@ function sky(b: PixBuf, top: string, bottom: string, horizon: number): void {
   }
 }
 
-export function drawTownBackdrop(graves: number, seed = 7): PixBuf {
+export interface TownFacilities { forge: number; infirmary: number; memorial: number }
+
+export function drawTownBackdrop(graves: number, fac: TownFacilities = { forge: 0, infirmary: 0, memorial: 0 }, seed = 7): PixBuf {
   const b = new PixBuf(BG_W, BG_H);
   const rng = new Rng(seed);
   sky(b, '#07060f', '#2c2148', GROUND_Y);
@@ -123,6 +125,7 @@ export function drawTownBackdrop(graves: number, seed = 7): PixBuf {
   if (graves === 0) {
     b.set(fx0 + 50, GROUND_Y + 10, hex('#4a6a4a'));
   }
+  drawFacilities(b, fac);
   // 안개
   for (let y = GROUND_Y - 8; y < GROUND_Y + 6; y++) {
     for (let x = 0; x < BG_W; x++) if ((x + y * 3) % 7 === 0) b.set(x, y, withAlpha(lighten(hex('#4a4070'), 0.2), 60));
@@ -149,4 +152,78 @@ export function drawDungeonBackdrop(skyTop: string, skyBottom: string, floor: st
   // 떠도는 빛
   for (let i = 0; i < 30; i++) b.set(rng.int(0, BG_W - 1), rng.int(10, BG_H - 30), withAlpha(hex(accent), rng.int(60, 160)));
   return b;
+}
+
+/** 거점 시설: 0단계는 폐허, 단계가 오를수록 커진다 */
+function drawFacilities(b: PixBuf, fac: TownFacilities): void {
+  const G = GROUND_Y;
+  const stone = ramp('#4a4258');
+  const wood = ramp('#5a3e2a');
+  const fire = hex('#ff9a3a');
+  // ---- 대장간
+  const fx = 148; // 성채 오른쪽에 붙은 별채
+  if (fac.forge === 0) {
+    for (let i = 0; i < 9; i++) b.hline(fx + i, fx + 30 - i, G - 1 - Math.floor(i / 2), i % 2 ? stone[1] : stone[0]);
+    b.set(fx + 12, G - 6, stone[2]); b.set(fx + 20, G - 4, stone[2]);
+  } else {
+    const w = fac.forge >= 2 ? 34 : 26;
+    const x0 = fx;
+    b.rect(x0, G - 20, w, 20, stone[1]);
+    for (let i = 0; i < 8; i++) b.hline(x0 - 2 + i, x0 + w + 1 - i, G - 20 - i, wood[1]);
+    b.rect(x0 + 4, G - 34, 5, 16, stone[0]); // 굴뚝
+    b.rect(x0 + 10, G - 10, 8, 10, hex('#1a0f0a'));
+    b.rect(x0 + 11, G - 8, 6, 8, fire); b.hline(x0 + 11, x0 + 16, G - 8, hex('#ffd45a'));
+    for (let i = 0; i < 4; i++) b.set(x0 + 6 + (i % 2), G - 37 - i * 3, withAlpha(hex('#8a8498'), 160 - i * 30)); // 연기
+    if (fac.forge >= 2) { b.rect(x0 + 24, G - 5, 6, 3, stone[3]); b.rect(x0 + 26, G - 2, 2, 2, stone[0]); } // 모루
+    if (fac.forge >= 3) {
+      b.rect(x0 + w - 7, G - 38, 4, 18, stone[0]);
+      b.vline(x0 + w + 3, G - 36, G - 20, wood[0]);
+      b.rect(x0 + w + 4, G - 36, 6, 8, hex('#a83a2a')); b.set(x0 + w + 6, G - 33, hex('#ffd45a'));
+    }
+  }
+  // ---- 치유소 (성채와 묘지 사이)
+  const ix = 190;
+  if (fac.infirmary === 0) {
+    b.line(ix, G - 1, ix + 8, G - 12, wood[1]); b.line(ix + 18, G - 1, ix + 12, G - 9, wood[1]);
+    b.hline(ix + 2, ix + 16, G - 1, hex('#8a8070'));
+  } else if (fac.infirmary < 3) {
+    const cloth = ramp('#d8d0c0');
+    for (let i = 0; i < 14; i++) b.hline(ix + 10 - Math.floor(i * 0.75), ix + 10 + Math.floor(i * 0.75), G - 14 + i, i % 3 === 0 ? cloth[1] : cloth[2]);
+    b.vline(ix + 10, G - 16, G - 1, wood[0]);
+    b.rect(ix + 8, G - 5, 5, 5, hex('#2a2030'));
+    b.hline(ix + 8, ix + 12, G - 10, hex('#c02a3a')); b.vline(ix + 10, G - 12, G - 8, hex('#c02a3a'));
+    if (fac.infirmary >= 2) { b.vline(ix + 21, G - 12, G - 1, wood[0]); b.rect(ix + 20, G - 15, 3, 3, hex('#ffd45a')); }
+  } else {
+    b.rect(ix, G - 18, 22, 18, ramp('#8a7a6a')[2]);
+    for (let i = 0; i < 7; i++) b.hline(ix - 2 + i, ix + 23 - i, G - 18 - i, wood[1]);
+    b.rect(ix + 8, G - 8, 6, 8, hex('#2a2030'));
+    b.rect(ix + 3, G - 14, 4, 4, hex('#ffcf6a')); b.rect(ix + 15, G - 14, 4, 4, hex('#ffcf6a'));
+    b.hline(ix + 9, ix + 13, G - 22, hex('#c02a3a')); b.vline(ix + 11, G - 24, G - 20, hex('#c02a3a'));
+  }
+  // ---- 추모비 (묘지 안쪽)
+  const mx = 262;
+  if (fac.memorial === 0) {
+    b.rect(mx - 4, G - 4, 9, 4, stone[1]); b.set(mx - 2, G - 6, stone[2]);
+  } else {
+    const hgt = [0, 14, 22, 30][fac.memorial];
+    const S = ramp('#9a96b0');
+    b.rect(mx - 6, G - 3, 13, 3, S[1]);
+    for (let i = 0; i < hgt; i++) {
+      const k = 3 - Math.floor((i / hgt) * 2);
+      b.hline(mx - k, mx + k, G - 3 - i, i % 5 === 0 ? S[3] : S[2]);
+      b.set(mx + k, G - 3 - i, S[1]);
+    }
+    b.set(mx, G - 3 - hgt, S[4]);
+    if (fac.memorial >= 2) {
+      const fy = G - 5 - hgt;
+      b.set(mx, fy, hex('#7fe3ff')); b.set(mx, fy - 1, hex('#bff4ff')); b.set(mx - 1, fy, withAlpha(hex('#7fe3ff'), 160)); b.set(mx + 1, fy, withAlpha(hex('#7fe3ff'), 160));
+    }
+    if (fac.memorial >= 3) {
+      for (let a = 0; a < 360; a += 30) {
+        const x = mx + Math.cos((a * Math.PI) / 180) * 9;
+        const y = G - 3 - hgt * 0.6 + Math.sin((a * Math.PI) / 180) * 5;
+        b.set(x, y, withAlpha(hex('#7fe3ff'), 110));
+      }
+    }
+  }
 }

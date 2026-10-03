@@ -3,6 +3,7 @@ import { factionRelation, FACTION_IDS } from './data/factions';
 import { HOUSES } from './data/houses';
 import { RACES } from './data/races';
 import { TRAITS } from './data/traits';
+import { memorialBonus } from './facilities';
 import { itemEffects, itemStatMod } from './gen/item';
 import {
   type Affinity, type Character, type Effects, type FactionId, type Stats, type StatKey,
@@ -13,6 +14,15 @@ import {
 export const BOUND_EFFECTS: Partial<Effects> = { regen: 0.03, nightVision: true, dmgTakenTag: { rift: 0.3 } };
 export const BOUND_STAT_MUL: Partial<Stats> = { atk: 1.1, mag: 1.1, spd: 1.1 };
 export const BOUND_AFFINITY: Affinity = { radiance: -2 };
+
+// 추모비에 봉안된 영웅들 (저장 데이터에서 Store가 등록한다)
+let enshrined: Character[] = [];
+export function setEnshrined(heroes: Character[]): void {
+  enshrined = heroes;
+}
+export function enshrinedHeroes(): Character[] {
+  return enshrined;
+}
 
 export function allTraitIds(ch: Character): string[] {
   return [...ch.traits, ...ch.curses, ...ch.blessings];
@@ -55,6 +65,11 @@ export function computeStats(ch: Character): Stats {
   }
   for (const it of Object.values(ch.gear ?? {})) if (it) mods.push(itemStatMod(it));
   if (ch.vampire) muls.push(BOUND_STAT_MUL);
+  if (enshrined.length) {
+    const mb = memorialBonus(ch, enshrined);
+    muls.push(mb.mul);
+    if (mb.crit) mods.push({ crit: mb.crit });
+  }
   for (const m of mods) for (const k of STAT_KEYS) s[k] += m[k] ?? 0;
   for (const m of muls) for (const k of STAT_KEYS) s[k] *= m[k] ?? 1;
 
@@ -99,6 +114,7 @@ export function computeEffects(ch: Character): Effects {
   for (const it of Object.values(ch.gear ?? {})) if (it) for (const e of itemEffects(it)) mergeEffects(eff, e);
   if (ch.vampire) mergeEffects(eff, BOUND_EFFECTS);
   if (ch.cheatDeathUsed) eff.cheatDeath = Math.max(0, eff.cheatDeath - 1);
+  if (enshrined.length) eff.expMul *= memorialBonus(ch, enshrined).expMul;
   return eff;
 }
 

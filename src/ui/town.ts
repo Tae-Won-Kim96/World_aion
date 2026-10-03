@@ -6,13 +6,13 @@ import { factionRelation, FACTIONS, FACTION_IDS } from '../core/data/factions';
 import { PITY5, PULL10_COST, PULL_COST, ROSTER_CAP } from '../core/gacha';
 import { RARITY_COLORS, SLOT_NAMES } from '../core/data/items';
 import { STAR_RATES } from '../core/gen/character';
-import { itemValue } from '../core/gen/item';
 import { SKILLS } from '../core/data/skills';
 import { LORD_SLOTS, PARTY_SIZE, STASH_CAP, store } from '../core/state';
 import { compatibility, DISCORD_T, fullName, HARMONY_T, partySynergy, powerScore, topFactions } from '../core/stats';
 import type { Character, FactionId, GearSlot } from '../core/types';
 import { lordExpToNext, bindSlots } from '../core/bond';
 import { TIER_ICONS, TIER_NAMES, tierOf } from '../core/relations';
+import { openFacilities } from './facilities';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
 import { charCard, charDetail, houseChip, itemRow, raceClassLine, starsEl } from './widgets';
 import { app } from './app';
@@ -27,6 +27,7 @@ function resBar(): HTMLElement {
     tooltip(h('span', { class: 'res' }, h('span', { class: 'core' }, '◈'), `결속 ${store.boundCount()}/${bindSlots(s.lord.level)}`), '지휘관 레벨이 오르면 결속 한도가 늘어난다.'),
     h('span', { class: 'res' }, `동료 ${s.roster.length}/${ROSTER_CAP}`),
     h('span', { class: 'res' }, `묘비 ${s.graveyard.length}`),
+    tooltip(h('span', { class: 'res core' }, `재건 ${store.restoration()}%`), '시설 단계, 정복한 던전, 지휘관 레벨로 정해진다.'),
     h('span', { class: 'grow' }),
     h('span', { class: 'res' }, `지휘관 Lv.${s.lord.level}`),
     h('div', { style: { width: '120px' } }, h('div', { class: 'bar lord' }, h('i', { style: { width: `${lordPct}%` } }))),
@@ -45,6 +46,7 @@ export function renderTown(): void {
       menuBtn('☗ 동료', `${s.roster.length}명 · 결속 의식`, () => openRoster()),
       menuBtn('✝ 묘지', `${s.graveyard.length}개의 묘비`, openGraveyard),
       menuBtn('⚑ 진영', '세력별 호감도와 상성', openFactions),
+      menuBtn('⌂ 거점 시설', `대장간 ${s.facilities.forge} · 치유소 ${s.facilities.infirmary} · 추모비 ${s.facilities.memorial}`, () => openFacilities(renderTown)),
       menuBtn('▣ 창고', `장비 ${s.stash.length}/${STASH_CAP}`, openStash),
       menuBtn('⚙ 설정', '저장 데이터 관리', openSettings),
     ),
@@ -192,13 +194,13 @@ function openStash(): void {
         h('h2', { style: { margin: 0 } }, `창고 — ${stash.length}/${STASH_CAP}`), h('span', { class: 'grow' }),
         h('button', {
           class: 'btn small danger', disabled: !commons.length,
-          onclick: () => confirmBox(`일반 등급 장비 ${commons.length}개를 분해한다. (금화 +${commons.reduce((a, i) => a + itemValue(i), 0)})`, '분해', () => { store.salvage(commons.map((i) => i.id)); render(); renderTown(); }, true),
+          onclick: () => confirmBox(`일반 등급 장비 ${commons.length}개를 분해한다. (금화 +${commons.reduce((a, i) => a + store.salvageValue(i), 0)})`, '분해', () => { store.salvage(commons.map((i) => i.id)); render(); renderTown(); }, true),
         }, '일반 등급 모두 분해'),
       ),
       h('div', { class: 'small dim' }, '동료 상세 화면의 장비 칸을 눌러 장착한다. 필멸자가 죽으면 장착한 장비도 함께 묻힌다.'),
       stash.length
         ? h('div', { class: 'items-grid scroll', style: { maxHeight: '560px' } }, ...stash.map((it) => itemRow(it,
-          h('button', { class: 'btn small', title: '분해', onclick: () => { store.salvage([it.id]); render(); renderTown(); } }, `분해 +${itemValue(it)}`))))
+          h('button', { class: 'btn small', title: '분해', onclick: () => { store.salvage([it.id]); render(); renderTown(); } }, `분해 +${store.salvageValue(it)}`))))
         : h('div', { class: 'dim center', style: { marginTop: '120px', fontSize: '14px' } }, '창고가 비어 있다.'),
       h('div', { class: 'small', style: { marginTop: '6px' } }, ...([1, 2, 3, 4] as const).map((r) => h('span', { class: 'chip', style: { color: RARITY_COLORS[r] } }, `${['', '일반', '고급', '희귀', '전설'][r]} ${stash.filter((i) => i.rarity === r).length}`))),
     );
@@ -224,6 +226,7 @@ function openGraveyard(): void {
             h('b', null, fullName(ch)),
             h('span', { class: 'small dim' }, `${raceClassLine(ch)} · Lv.${ch.level}`),
             ch.house ? houseChip(ch.house) : null,
+            store.s.memorial.enshrined.includes(ch.id) ? h('span', { class: 'chip core' }, '⛫ 추모비에 봉안') : null,
             h('span', { class: 'small bad' }, `${gr.where} — ${gr.cause}`),
             h('span', { class: 'ep' }, `“${gr.epitaph}”`),
           ),

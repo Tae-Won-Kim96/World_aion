@@ -265,6 +265,7 @@ export interface Item {
   stats: Partial<Stats>;
   affixes: string[];
   unique?: string;
+  plus?: number;          // 대장간 강화 단계 (0~10)
 }
 
 export interface Character {
@@ -294,6 +295,8 @@ export interface Character {
   cheatDeathUsed?: boolean;
   gear?: Partial<Record<GearSlot, Item>>;
   isLord?: boolean;
+  deeds?: { boss: number; elite: number }; // 업적: 보스·정예 토벌에 살아서 참여한 횟수
+  resurrected?: number;   // 추모비에서 되살아난 횟수
 }
 
 export interface Grave {

@@ -59,6 +59,8 @@ export function generateItem(seed: number, o: ItemGenOpts): Item {
 /** 장비가 주는 능력치 가산 합계 */
 export function itemStatMod(it: Item): Partial<Stats> {
   const out: Partial<Stats> = { ...it.stats };
+  const p = it.plus ?? 0;
+  if (p > 0) for (const k of STAT_KEYS) { const v = out[k]; if (v && v > 0) out[k] = v + Math.max(Math.ceil(p / 2), Math.round(v * 0.08 * p)); }
   for (const a of it.affixes) addStats(out, AFFIXES[a]?.statMod);
   if (it.unique) addStats(out, UNIQUES[it.unique]?.statMod);
   return out;
@@ -72,7 +74,33 @@ export function itemEffects(it: Item): Partial<Effects>[] {
 }
 
 export function itemValue(it: Item): number {
-  return 8 * it.rarity * it.rarity + it.ilvl * 3;
+  return 8 * it.rarity * it.rarity + it.ilvl * 3 + (it.plus ?? 0) * 12;
+}
+
+/** 강화 단계를 이름 앞에 붙인다 */
+export function displayName(it: Item): string {
+  const base = it.name.replace(/^\+\d+ /, '');
+  return it.plus ? `+${it.plus} ${base}` : base;
+}
+
+/** 접두사 재련: 같은 기반·등급으로 접두사만 다시 굴린다 (일반·전설 제외) */
+export function rerollAffixes(it: Item, seed: number): Item {
+  if (it.rarity === 1 || it.rarity === 4) return it;
+  const rng = new Rng(seed);
+  const b = ITEM_BASES[it.base];
+  const affixes: string[] = [];
+  const n = it.rarity === 2 ? 1 : 2;
+  for (let i = 0; i < n; i++) {
+    const pool = Object.values(AFFIXES).filter((a) => a.slots.includes(b.slot) && !affixes.includes(a.id));
+    if (!pool.length) break;
+    affixes.push(rng.weighted(pool, (a) => a.weight).id);
+  }
+  let name = b.name;
+  if (affixes[0]) name = `${AFFIXES[affixes[0]].name} ${b.name}`;
+  if (affixes[1]) name += ` · ${AFFIXES[affixes[1]].short}`;
+  const out = { ...it, affixes, name };
+  out.name = displayName(out);
+  return out;
 }
 
 export function itemLines(it: Item): string[] {

@@ -318,3 +318,21 @@ h2.core { color: #7fe3ff; }
 .chip.tier-nemesis { background: #3a1018; color: #ff7a8a; border-color: #7a2030; }
 .quote { font-size: 12px; font-style: italic; color: #d8c8a8; text-align: center; margin: 4px 0; line-height: 1.5; }
 .talk { color: #f2e6c8; padding-left: 10px; border-left: 2px solid #6a5a8a; font-style: italic; }
+
+/* 거점 시설 */
+.fac-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0; }
+.fac-card { border: 2px solid #3a3050; background: #1c1628; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+.fac-card.active { border-color: #e2b84a; background: #251c34; }
+.fac-card.ruin { opacity: 0.8; filter: grayscale(0.5); }
+.fac-card .pips { margin-left: auto; display: flex; gap: 3px; }
+.fac-card .pips i { width: 10px; height: 10px; border: 1px solid #6a5a8a; display: inline-block; }
+.fac-card .pips i.on { background: #e2b84a; border-color: #e2b84a; }
+.fac-body { flex: 1; min-height: 0; max-height: 440px; padding-right: 4px; }
+.inf-row { display: flex; align-items: center; gap: 10px; padding: 6px; border-bottom: 1px solid #2a2238; }
+.mem-slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.mem-slot { display: flex; gap: 10px; align-items: center; border: 2px solid #5a4a2a; background: #1e1a14; padding: 8px; min-height: 110px; }
+.mem-slot.empty { justify-content: center; border-style: dashed; border-color: #3a3050; background: transparent; }
+.grave.faded { opacity: 0.55; }
+.rez { margin: 10px 0; border-color: #6a2030 !important; }
+.rez select { background: #1a1424; color: #e8e0f0; border: 1px solid #4a3a5a; padding: 4px; font-family: inherit; }
+.row.wrap { flex-wrap: wrap; }
