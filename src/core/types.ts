@@ -19,6 +19,8 @@ export type Affinity = Partial<Record<FactionId, number>>;
 export type RaceId =
   | 'divine' | 'angel' | 'demon' | 'elf' | 'darkelf' | 'dwarf' | 'gnome' | 'halfling'
   | 'imp' | 'human' | 'orc' | 'troll' | 'deepone' | 'beastkin'
+  // 혈주 전용
+  | 'dhampir'
   // 적 전용
   | 'skeleton' | 'ghoul' | 'goblin' | 'wraith';
 
@@ -59,7 +61,7 @@ export interface SkillDef {
   id: string;
   name: string;
   desc: string;
-  kind: 'phys' | 'mag' | 'heal' | 'buff' | 'debuff';
+  kind: 'phys' | 'mag' | 'heal' | 'buff' | 'debuff' | 'summon';
   target: SkillTarget;
   range: [number, number];
   area: number;      // 0 = 단일, n = 맨해튼 반경
@@ -72,6 +74,8 @@ export interface SkillDef {
   push?: number;     // 넉백 칸
   bonusVsTag?: { tag: string; mul: number };
   hpCost?: number;   // 시전자 최대체력 비율 소모
+  charge?: number;   // 예고 공격: n턴 영창 후 지정 칸에 발동
+  summon?: { def: string; count: number };
   fx: FxKind;
   projectile?: boolean;
 }
@@ -212,6 +216,22 @@ export interface FactionDef {
   color: string;
 }
 
+export type GearSlot = 'weapon' | 'armor' | 'trinket';
+export type Rarity = 1 | 2 | 3 | 4;
+
+export interface Item {
+  id: string;
+  seed: number;
+  slot: GearSlot;
+  base: string;
+  rarity: Rarity;
+  name: string;
+  ilvl: number;
+  stats: Partial<Stats>;
+  affixes: string[];
+  unique?: string;
+}
+
 export interface Character {
   id: string;
   seed: number;
@@ -237,6 +257,8 @@ export interface Character {
   runs: number;
   createdAt: number;
   cheatDeathUsed?: boolean;
+  gear?: Partial<Record<GearSlot, Item>>;
+  isLord?: boolean;
 }
 
 export interface Grave {
@@ -246,6 +268,12 @@ export interface Grave {
   where: string;
   epitaph: string;
   runNo: number;
+}
+
+export function addStats(into: Partial<Stats>, add: Partial<Stats> | undefined): Partial<Stats> {
+  if (!add) return into;
+  for (const k of STAT_KEYS) if (add[k]) into[k] = (into[k] ?? 0) + add[k]!;
+  return into;
 }
 
 export function emptyStats(): Stats {

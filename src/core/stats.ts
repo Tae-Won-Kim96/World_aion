@@ -3,6 +3,7 @@ import { factionRelation, FACTION_IDS } from './data/factions';
 import { HOUSES } from './data/houses';
 import { RACES } from './data/races';
 import { TRAITS } from './data/traits';
+import { itemEffects, itemStatMod } from './gen/item';
 import {
   type Affinity, type Character, type Effects, type FactionId, type Stats, type StatKey,
   STAT_KEYS, defaultEffects, emptyStats,
@@ -51,6 +52,7 @@ export function computeStats(ch: Character): Stats {
     if (h?.perk.statMod) mods.push(h.perk.statMod);
     if (h?.perk.statMul) muls.push(h.perk.statMul);
   }
+  for (const it of Object.values(ch.gear ?? {})) if (it) mods.push(itemStatMod(it));
   if (ch.vampire) muls.push(VAMPIRE_STAT_MUL);
   for (const m of mods) for (const k of STAT_KEYS) s[k] += m[k] ?? 0;
   for (const m of muls) for (const k of STAT_KEYS) s[k] *= m[k] ?? 1;
@@ -93,6 +95,7 @@ export function computeEffects(ch: Character): Effects {
   mergeEffects(eff, RACES[ch.race].effects);
   for (const id of allTraitIds(ch)) mergeEffects(eff, TRAITS[id]?.effects);
   if (ch.house) mergeEffects(eff, HOUSES[ch.house]?.perk.effects);
+  for (const it of Object.values(ch.gear ?? {})) if (it) for (const e of itemEffects(it)) mergeEffects(eff, e);
   if (ch.vampire) mergeEffects(eff, VAMPIRE_EFFECTS);
   if (ch.cheatDeathUsed) eff.cheatDeath = Math.max(0, eff.cheatDeath - 1);
   return eff;

@@ -1,4 +1,14 @@
-import type { HeadgearKind, OffhandKind, OutfitKind, RaceId, Stats, WeaponKind } from '../types';
+import type { HeadgearKind, OffhandKind, OutfitKind, RaceId, Stats, StatusApply, WeaponKind } from '../types';
+
+/** 체력이 at 비율 이하로 떨어지면 1회 발동 */
+export interface PhaseDef {
+  at: number;
+  text: string;
+  summon?: { def: string; count: number };
+  selfStatus?: StatusApply[];
+  addSkills?: string[];
+  heal?: number;
+}
 
 export interface EnemyDef {
   id: string;
@@ -21,6 +31,7 @@ export interface EnemyDef {
   elite?: boolean;
   boss?: boolean;
   scale?: number;
+  phases?: PhaseDef[];
 }
 
 const E = (e: EnemyDef) => e;
@@ -40,11 +51,14 @@ export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
       look: { weapon: 'fist', outfit: 'robe', head: 'hood', palette: ['#26284a', '#7fe3ff'] }, exp: 14, gold: 6 }),
     E({ id: 'grave_robber', name: '도굴꾼', race: 'human', cls: 'rogue', mul: { hp: 0.75, atk: 0.85 }, skills: ['poison_blade'], tags: ['bandit'],
       look: { weapon: 'dagger', offhand: 'lantern', outfit: 'leather', head: 'bandana', palette: ['#5a4a3a', '#8a2a2a'] }, exp: 12, gold: 16 }),
-    E({ id: 'bone_knight', name: '해골 기사', race: 'skeleton', cls: 'knight', mul: { hp: 1.25, atk: 1.0, def: 1.2 }, skills: ['shield_bash', 'bone_rattle'], tags: ['undead', 'unholy'],
-      look: { weapon: 'greatsword', offhand: 'none', outfit: 'plate', head: 'greathelm', palette: ['#3a3d48', '#7a1a1a'] }, exp: 30, gold: 25, elite: true, scale: 1.1 }),
-    E({ id: 'cult_priest', name: '광신 사제', race: 'human', cls: 'priest', mul: { hp: 1.1, mag: 1.0 }, skills: ['heal', 'shadow_bolt'], tags: ['cult'],
-      look: { weapon: 'staff', offhand: 'book', outfit: 'vestment', head: 'mitre', palette: ['#3a0a14', '#d4a017'] }, exp: 30, gold: 35, elite: true }),
-    E({ id: 'bishop', name: '타락한 주교 모르데인', race: 'skeleton', cls: 'necromancer', mul: { hp: 3.6, mag: 1.1, def: 1.25, res: 1.35 }, skills: ['bone_spear', 'dark_nova', 'drain_life'], tags: ['undead', 'unholy', 'boss'],
+    E({ id: 'bone_knight', name: '해골 기사', race: 'skeleton', cls: 'knight', mul: { hp: 1.25, atk: 1.0, def: 1.2 }, skills: ['crushing_blow', 'bone_rattle'], tags: ['undead', 'unholy'],
+      look: { weapon: 'greatsword', offhand: 'none', outfit: 'plate', head: 'greathelm', palette: ['#3a3d48', '#7a1a1a'] }, exp: 30, gold: 25, elite: true, scale: 1.1,
+      phases: [{ at: 0.5, text: '해골 기사의 투구 속에서 붉은 불길이 타오른다!', selfStatus: [{ id: 'bless', turns: 4 }, { id: 'guard', turns: 2 }] }] }),
+    E({ id: 'cult_priest', name: '광신 사제', race: 'human', cls: 'priest', mul: { hp: 1.1, mag: 1.0 }, skills: ['heal', 'shadow_bolt', 'call_faithful'], tags: ['cult'],
+      look: { weapon: 'staff', offhand: 'book', outfit: 'vestment', head: 'mitre', palette: ['#3a0a14', '#d4a017'] }, exp: 30, gold: 35, elite: true,
+      phases: [{ at: 0.5, text: '"신도들이여, 나를 지켜라!"', summon: { def: 'cultist', count: 1 } }] }),
+    E({ id: 'bishop', name: '타락한 주교 모르데인', race: 'skeleton', cls: 'necromancer', mul: { hp: 3.6, mag: 1.1, def: 1.25, res: 1.35 }, skills: ['bone_spear', 'dark_nova', 'drain_life', 'unholy_requiem'], tags: ['undead', 'unholy', 'boss'],
+      phases: [{ at: 0.5, text: '주교가 지팡이를 들어 올리자 무덤들이 열린다!', summon: { def: 'skel_warrior', count: 2 }, selfStatus: [{ id: 'haste', turns: 3 }], addSkills: ['raise_dead'] }],
       look: { weapon: 'staff', offhand: 'none', outfit: 'vestment', head: 'mitre', palette: ['#2a1a3a', '#c9a227'] }, exp: 90, gold: 120, boss: true, scale: 1.5 }),
 
     // ===== 가라앉은 사원 =====
@@ -58,9 +72,11 @@ export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
       look: { weapon: 'totem', outfit: 'tribal', head: 'skullcap', palette: ['#7a5a2a', '#e07a2e'] }, exp: 16, gold: 12 }),
     E({ id: 'abyss_chanter', name: '심연 성가대원', race: 'deepone', cls: 'abyssal', mul: { hp: 0.8, mag: 0.9 }, skills: ['tidal_wave'], tags: ['abyssal', 'cult'],
       look: { weapon: 'staff', outfit: 'robe', head: 'veil', palette: ['#0f3a48', '#2ec4b6'] }, exp: 16, gold: 12 }),
-    E({ id: 'deep_brute', name: '심해 거한', race: 'deepone', cls: 'berserker', mul: { hp: 1.5, atk: 1.1 }, skills: ['whirlwind'], tags: ['abyssal'],
-      look: { weapon: 'greataxe', outfit: 'tribal', head: 'none', palette: ['#16505c', '#c9a36b'] }, exp: 34, gold: 30, elite: true, scale: 1.25 }),
-    E({ id: 'high_priest', name: '심해 대사제 크툴락', race: 'deepone', cls: 'abyssal', mul: { hp: 3.8, mag: 1.1, res: 1.4, def: 1.2 }, skills: ['tidal_wave', 'abyss_gaze', 'drain_life'], tags: ['abyssal', 'boss'],
+    E({ id: 'deep_brute', name: '심해 거한', race: 'deepone', cls: 'berserker', mul: { hp: 1.5, atk: 1.1 }, skills: ['whirlwind', 'crushing_blow'], tags: ['abyssal'],
+      look: { weapon: 'greataxe', outfit: 'tribal', head: 'none', palette: ['#16505c', '#c9a36b'] }, exp: 34, gold: 30, elite: true, scale: 1.25,
+      phases: [{ at: 0.5, text: '심해 거한이 포효하며 비늘을 곤두세운다!', selfStatus: [{ id: 'bless', turns: 3 }, { id: 'haste', turns: 2 }] }] }),
+    E({ id: 'high_priest', name: '심해 대사제 크툴락', race: 'deepone', cls: 'abyssal', mul: { hp: 3.8, mag: 1.1, res: 1.4, def: 1.2 }, skills: ['tidal_wave', 'abyss_gaze', 'drain_life', 'abyssal_tide'], tags: ['abyssal', 'boss'],
+      phases: [{ at: 0.5, text: '크툴락이 심해의 이름을 부르짖는다!', summon: { def: 'deep_spawn', count: 2 }, selfStatus: [{ id: 'regen', turns: 4 }], addSkills: ['call_deep'] }],
       look: { weapon: 'trident', outfit: 'robe', head: 'crown', palette: ['#0a2a3a', '#ffd84a'] }, exp: 110, gold: 150, boss: true, scale: 1.6 }),
   ].map((e) => [e.id, e]),
 );

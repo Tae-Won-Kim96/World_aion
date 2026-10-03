@@ -5,7 +5,8 @@ import { EVENTS, type Cond, type EventDef } from './data/events';
 import { RACES } from './data/races';
 import { Rng } from './rng';
 import { characterAffinity, computeEffects } from './stats';
-import type { Character } from './types';
+import { generateItem, itemValue } from './gen/item';
+import type { Character, Item } from './types';
 
 export type NodeKind = 'battle' | 'elite' | 'event' | 'rest' | 'treasure' | 'shop' | 'boss';
 
@@ -38,7 +39,7 @@ export type Darkness = 'bright' | 'dim' | 'dark';
 
 export interface Notice { title: string; lines: string[] }
 
-export interface ShopItem { id: string; name: string; desc: string; price: number; sold?: boolean }
+export interface ShopItem { id: string; name: string; desc: string; price: number; sold?: boolean; item?: Item }
 
 export interface RunState {
   dungeon: string;
@@ -63,6 +64,8 @@ export interface RunState {
   usedEvents: string[];
   outcome?: 'victory' | 'retreat' | 'wipe';
   step: number;
+  loot: Item[];
+  relics: string[];
 }
 
 export function generateMap(d: DungeonDef, seed: number): MapNode[] {
@@ -117,16 +120,23 @@ export function darkness(torch: number): Darkness {
 export const DARKNESS_NAMES: Record<Darkness, string> = { bright: '밝음', dim: '어스름', dark: '칠흑' };
 export const LOOT_MUL: Record<Darkness, number> = { bright: 1, dim: 1.1, dark: 1.25 };
 
-export function torchCost(party: Character[]): number {
-  const saver = Math.max(0, ...party.map((c) => computeEffects(c).torchSaver));
-  return Math.max(4, Math.round(12 * (1 - Math.min(0.6, saver))));
+export function torchCost(party: Character[], relics: string[] = []): number {
+  let saver = Math.max(0, ...party.map((c) => computeEffects(c).torchSaver));
+  if (relics.includes('silver_lantern')) saver += 0.3;
+  return Math.max(4, Math.round(12 * (1 - Math.min(0.7, saver))));
+}
+
+/** 현재 위치 기준 아이템 레벨 */
+export function itemLevel(run: RunState): number {
+  const node = run.nodes.find((n) => n.id === run.current);
+  return 1 + (node?.layer ?? 0) + DUNGEONS[run.dungeon].tier * 3;
 }
 
 export function makeBattle(run: RunState, kind: 'battle' | 'elite' | 'boss', party: Character[], rng: Rng): BattleSpec {
   const d = DUNGEONS[run.dungeon];
   const node = run.nodes.find((n) => n.id === run.current);
   const layer = node?.layer ?? 0;
-  const level = 1 + Math.floor(layer * 0.8) + d.tier * 5;
+  const level = 1 + Math.floor(layer * 0.8) + d.tier * 3;
   const count = kind === 'battle' ? Math.min(5, 2 + Math.floor(layer / 2) + (rng.chance(0.5) ? 1 : 0)) : kind === 'boss' ? 2 : 2 + (layer > 4 ? 1 : 0);
   const enemies: EnemySpawn[] = [];
   if (kind === 'elite') enemies.push({ def: rng.pick(d.elites), level: level + 1, seed: rng.seed32() });
@@ -136,6 +146,7 @@ export function makeBattle(run: RunState, kind: 'battle' | 'elite' | 'boss', par
   const nv = party.filter((c) => computeEffects(c).nightVision).length;
   let ambushP = dk === 'dim' ? 0.15 : dk === 'dark' ? 0.35 : 0;
   if (nv * 2 >= party.length) ambushP /= 2;
+  if (run.relics?.includes('watchful_eye')) ambushP = 0;
   return {
     enemies, elite: kind === 'elite', boss: kind === 'boss', ambush: kind !== 'boss' && rng.chance(ambushP),
     darkness: dk, seed: rng.seed32(), goldBonus: LOOT_MUL[dk], theme: run.dungeon,
@@ -174,15 +185,16 @@ export function pickEvent(run: RunState, rng: Rng): EventDef {
   return rng.weighted(pool.length ? pool : EVENTS, (e) => e.weight);
 }
 
-export function makeShop(rng: Rng, discount: number): ShopItem[] {
+export function makeShop(rng: Rng, discount: number, ilvl = 1): ShopItem[] {
   const p = (n: number) => Math.max(1, Math.round(n * (1 - Math.min(0.5, discount))));
+  const gear = generateItem(rng.seed32(), { ilvl, minRarity: 2 });
   const items: ShopItem[] = [
     { id: 'torch', name: '횃불 기름', desc: '횃불 +30', price: p(30) },
     { id: 'bandage', name: '붕대 꾸러미', desc: '파티 전원 체력 35% 회복', price: p(50) },
     { id: 'holywater', name: '성수', desc: '저주 하나를 정화한다', price: p(80) },
     { id: 'essence', name: '피의 정수', desc: '피의 정수 +1', price: p(120) },
   ];
-  return rng.sample(items, 3);
+  return [...rng.sample(items, 3), { id: 'gear', name: gear.name, desc: '장비', price: p(itemValue(gear) * 3), item: gear }];
 }
 
 export function enemyName(id: string): string {

@@ -1,14 +1,18 @@
 import { lookFromCharacter } from '../art/look';
 import { bufUrl, spriteEl } from '../art/registry';
+import { drawItemIcon, drawRelicIcon } from '../art/items';
 import { drawStar } from '../art/tiles';
 import { CLASSES, ROLE_NAMES } from '../core/data/classes';
 import { FACTIONS, FACTION_IDS } from '../core/data/factions';
 import { HOUSES } from '../core/data/houses';
+import { RARITY_COLORS, SLOT_NAMES } from '../core/data/items';
+import { RELICS } from '../core/data/relics';
+import { itemLines } from '../core/gen/item';
 import { RACES } from '../core/data/races';
 import { SKILLS } from '../core/data/skills';
 import { TRAITS } from '../core/data/traits';
 import { characterAffinity, computeStats, expToNext, fullName, levelCap, powerScore } from '../core/stats';
-import { type Character, STAT_KEYS, STAT_NAMES } from '../core/types';
+import { type Character, type GearSlot, type Item, STAT_KEYS, STAT_NAMES } from '../core/types';
 import { h, tooltip } from './dom';
 
 export function starsEl(n: number, max = 5): HTMLElement {
@@ -30,6 +34,43 @@ export function houseChip(id: string | undefined): HTMLElement | null {
   const hd = HOUSES[id];
   const el = h('span', { class: 'chip house', style: `--hc:${hd.colors[0]};--hc2:${hd.colors[1]}` }, `${hd.emblem} ${hd.name}`);
   return tooltip(el, `${hd.name}${hd.rarity === 'legendary' ? ' (전설)' : ''}\n${hd.desc}\n\n[${hd.perk.name}] ${hd.perk.desc}`);
+}
+
+export function itemIcon(it: Item, size = 32): HTMLImageElement {
+  const img = h('img', { class: 'pix', src: bufUrl(`item_${it.base}_${it.rarity}`, () => drawItemIcon(it.base, it.rarity)), width: size, height: size, alt: it.name });
+  return img;
+}
+
+export function itemTip(it: Item): string {
+  return [it.name, ...itemLines(it)].join('\n');
+}
+
+/** 아이콘 + 이름 한 줄 */
+export function itemRow(it: Item, extra: HTMLElement | null = null): HTMLElement {
+  return tooltip(h('div', { class: 'item-row' },
+    itemIcon(it, 32),
+    h('div', { class: 'col', style: { gap: '1px', flex: '1', minWidth: '0' } },
+      h('span', { class: 'item-name', style: { color: RARITY_COLORS[it.rarity] } }, it.name),
+      h('span', { class: 'small dim' }, itemLines(it)[1] ?? ''),
+    ),
+    extra,
+  ), itemTip(it));
+}
+
+export function relicIcon(id: string, size = 24): HTMLElement {
+  const r = RELICS[id];
+  return tooltip(h('img', { class: 'pix relic', src: bufUrl(`relic_${id}`, () => drawRelicIcon(id)), width: size, height: size, alt: r?.name ?? id }), r ? `${r.name}\n${r.desc}` : id);
+}
+
+export function gearSlots(ch: Character, onSlot?: (slot: GearSlot) => void): HTMLElement {
+  return h('div', { class: 'gear' }, ...(['weapon', 'armor', 'trinket'] as GearSlot[]).map((slot) => {
+    const it = ch.gear?.[slot];
+    const el = it
+      ? itemRow(it)
+      : h('div', { class: 'item-row empty' }, h('span', { class: 'slot-ph' }, '+'), h('span', { class: 'dim small' }, `${SLOT_NAMES[slot]} 비어 있음`));
+    if (onSlot) { el.classList.add('clickable'); el.addEventListener('click', () => onSlot(slot)); }
+    return el;
+  }));
 }
 
 export function hpBar(hp: number, max: number): HTMLElement {
@@ -54,11 +95,11 @@ export function charCard(ch: Character, o: CardOpts = {}): HTMLElement {
   const look = lookFromCharacter(ch);
   const spr = spriteEl(look, o.scale ?? 2, { className: ch.dormant > 0 ? 'dormant' : '' });
   const card = h('div', {
-    class: `card s${ch.star} ${o.selected ? 'sel' : ''} ${o.disabled ? 'disabled' : ''}`,
+    class: `card s${ch.star} ${ch.isLord ? 'lord' : ''} ${o.selected ? 'sel' : ''} ${o.disabled ? 'disabled' : ''}`,
     onclick: () => { if (!o.disabled) o.onClick?.(ch); },
   },
     h('span', { class: 'lv' }, `Lv.${ch.level}`),
-    h('span', { class: 'badge' }, ch.vampire ? h('span', { class: 'vamp', title: '뱀파이어' }, '🦇') : null, ch.dormant > 0 ? h('span', { title: '휴면' }, '⚰') : null),
+    h('span', { class: 'badge' }, ch.isLord ? h('span', { class: 'vamp', title: '혈주' }, '♛') : null, ch.vampire ? h('span', { class: 'vamp', title: '뱀파이어' }, '🦇') : null, ch.dormant > 0 ? h('span', { title: '휴면' }, '⚰') : null),
     spr,
     starsEl(ch.star),
     h('div', { class: 'nm' }, fullName(ch)),
@@ -84,12 +125,12 @@ function affinityRows(ch: Character): HTMLElement[] {
 }
 
 /** 캐릭터 상세 시트 */
-export function charDetail(ch: Character, actions: HTMLElement | null = null): HTMLElement {
+export function charDetail(ch: Character, actions: HTMLElement | null = null, onGear?: (slot: GearSlot) => void): HTMLElement {
   const look = lookFromCharacter(ch);
   const st = computeStats(ch);
   const c = CLASSES[ch.cls];
   const r = RACES[ch.race];
-  const cap = levelCap(ch.star);
+  const cap = ch.isLord ? 99 : levelCap(ch.star);
   const expPct = ch.level >= cap ? 100 : (ch.exp / expToNext(ch.level)) * 100;
   const hd = ch.house ? HOUSES[ch.house] : undefined;
   return h('div', { class: 'detail' },
@@ -100,12 +141,14 @@ export function charDetail(ch: Character, actions: HTMLElement | null = null): H
       h('div', { class: 'dim' }, `${raceClassLine(ch)} · ${ROLE_NAMES[c.role]}`),
       h('div', { class: 'dim small' }, `Lv.${ch.level} / ${cap}  전투력 ${powerScore(ch)}`),
       h('div', { style: { width: '100%' } }, h('div', { class: 'bar exp' }, h('i', { style: { width: `${ch.vampire ? 100 : expPct}%` } }))),
-      ch.vampire ? h('span', { class: 'chip vamp' }, `🦇 뱀파이어 (Lv.${ch.turnedAtLevel}에 흡혈, 성장 정지)`) : h('span', { class: 'chip' }, '필멸자 · 사망 시 묘지행'),
+      ch.isLord ? h('span', { class: 'chip vamp' }, '♛ 혈주 · 쓰러지면 휴면') : ch.vampire ? h('span', { class: 'chip vamp' }, `🦇 뱀파이어 (Lv.${ch.turnedAtLevel}에 흡혈, 성장 정지)`) : h('span', { class: 'chip' }, '필멸자 · 사망 시 묘지행'),
       ch.dormant > 0 ? h('span', { class: 'chip neg' }, `⚰ 관 속에서 휴면 (원정 ${ch.dormant}회)`) : null,
       h('div', { class: 'small dim' }, `처치 ${ch.kills} · 원정 ${ch.runs}회`),
       actions,
     ),
     h('div', { class: 'col scroll', style: { maxHeight: '560px' } },
+      h('h3', null, '장비'),
+      gearSlots(ch, onGear),
       h('h3', null, '능력치'),
       h('table', { class: 'stat-table' }, ...STAT_KEYS.map((k) => h('tr', null, h('td', null, STAT_NAMES[k]), h('td', null, k === 'crit' ? `${st[k]}%` : String(st[k]))))),
       h('h3', null, '기술'),

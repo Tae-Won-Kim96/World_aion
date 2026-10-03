@@ -7,6 +7,7 @@ import { planTurn } from '../core/battle/ai';
 import {
   type Action, actionReady, actionsOf, advance, affectedUnits, type BattleState, type BEvent, createBattle, dist,
   endTurn, findPath, moveUnit, performAction, reachableTiles, startTurn, STATUS_NAMES, BAD_STATUS, targetTiles, type Unit,
+  dangerTiles, resolvePending,
 } from '../core/battle/battle';
 import { DUNGEONS } from '../core/data/dungeons';
 import { ENEMIES } from '../core/data/enemies';
@@ -38,6 +39,7 @@ export class BattleScene extends Phaser.Scene {
   hud!: BattleHud;
   private hl!: Phaser.GameObjects.Graphics;
   private hoverG!: Phaser.GameObjects.Graphics;
+  private dangerG!: Phaser.GameObjects.Graphics;
   private marker!: Phaser.GameObjects.Container;
   active: Unit | null = null;
   inputMode = false;
@@ -59,7 +61,7 @@ export class BattleScene extends Phaser.Scene {
     const spec = run.battle!;
     const party = store.activeParty();
     const morale = partySynergy(party).morale;
-    this.st = createBattle({ party: party.map((c) => ({ char: c, hp: run.hp[c.id] })), spec, morale });
+    this.st = createBattle({ party: party.map((c) => ({ char: c, hp: run.hp[c.id] })), spec, morale, relics: run.relics });
     this.vis.clear();
     this.looks.clear();
     this.deaths = [];
@@ -81,6 +83,8 @@ export class BattleScene extends Phaser.Scene {
     }
     this.hl = this.add.graphics().setDepth(5);
     this.hoverG = this.add.graphics().setDepth(6);
+    this.dangerG = this.add.graphics().setDepth(4);
+    this.tweens.add({ targets: this.dangerG, alpha: { from: 0.55, to: 1 }, duration: 500, yoyo: true, repeat: -1 });
 
     for (const o of this.st.obstacles) {
       const key = ensureBufTexture(this.textures, `obs_${o.kind}_${d.id}`, () => drawObstacle(o.kind as ObstacleKind, d.theme.accent));
@@ -164,6 +168,24 @@ export class BattleScene extends Phaser.Scene {
     if (!u) { this.marker.setVisible(false); return; }
     const v = this.vis.get(u.uid)!;
     this.marker.setVisible(true).setPosition(v.spr.x - 7, v.spr.y - 40 * v.scale - 26);
+  }
+
+  /** 예고 공격 위험 칸 */
+  drawDanger(): void {
+    const g = this.dangerG;
+    g.clear();
+    for (const t of dangerTiles(this.st, 'ally')) {
+      const x = GX + t.x * TS;
+      const y = GY + t.y * TS;
+      g.fillStyle(0xff2a3a, 0.28).fillRect(x + 2, y + 2, TS - 4, TS - 4);
+      g.lineStyle(2, 0xff4a5a, 0.9).strokeRect(x + 3, y + 3, TS - 6, TS - 6);
+      g.lineStyle(2, 0xff4a5a, 0.5);
+      for (let k = 8; k < TS * 2; k += 14) g.lineBetween(x + Math.max(4, k - TS + 4), y + Math.min(TS - 4, k), x + Math.min(TS - 4, k), y + Math.max(4, k - TS + 4));
+    }
+  }
+
+  inDanger(u: Unit): boolean {
+    return dangerTiles(this.st, u.side).some((t) => t.x === u.x && t.y === u.y);
   }
 
   banner(text: string): void {
@@ -487,6 +509,46 @@ export class BattleScene extends Phaser.Scene {
         case 'log':
           this.hud.log(e.text);
           break;
+        case 'charge': {
+          const t = byId(e.src);
+          const v = this.vis.get(t.uid)!;
+          v.spr.setTint(0xff6a7a);
+          this.floatText(v.spr.x, v.spr.y - 40 * v.scale - 18, `영창: ${e.name}`, '#ff8a9a', 15);
+          this.drawDanger();
+          this.cameras.main.flash(160, 120, 0, 20);
+          await wait(this, 500 / this.speed);
+          v.spr.clearTint();
+          break;
+        }
+        case 'interrupt': {
+          const t = byId(e.src);
+          const v = this.vis.get(t.uid)!;
+          this.floatText(v.spr.x, v.spr.y - 40 * v.scale - 18, '영창 중단!', '#ffd45a', 16);
+          this.drawDanger();
+          break;
+        }
+        case 'phase': {
+          const t = byId(e.src);
+          const v = this.vis.get(t.uid);
+          this.hud.banner(e.text, true);
+          this.hud.log(e.text);
+          this.cameras.main.shake(300, 0.006);
+          if (v) { v.spr.setTint(0xff3a4a); this.time.delayedCall(400, () => v.spr.clearTint()); }
+          await wait(this, 900 / this.speed);
+          break;
+        }
+        case 'spawn': {
+          const t = byId(e.uid);
+          this.spawnUnit(t);
+          const v = this.vis.get(t.uid)!;
+          v.spr.setAlpha(0);
+          v.shadow.setAlpha(0);
+          this.hitFx(v.spr.x, v.spr.y - 30, 'dark');
+          this.tweens.add({ targets: [v.spr, v.shadow], alpha: 1, duration: 350 / this.speed });
+          this.hud.log(`${t.name}이(가) 나타났다!`);
+          await wait(this, 200 / this.speed);
+          break;
+        }
         default:
           break;
       }
@@ -497,6 +559,7 @@ export class BattleScene extends Phaser.Scene {
       this.placeVis(src);
       v.spr.play(idleAnim(this, v.tex, 2.2));
     }
+    this.drawDanger();
     this.hud.update();
   }
 
@@ -542,8 +605,12 @@ export class BattleScene extends Phaser.Scene {
       const skip = startTurn(this.st, u, ev);
       await this.playEvents(null, ev);
       if (this.st.over) break;
-      if (!u.alive || skip) { endTurn(this.st, u); continue; }
-      if (u.side === 'enemy' || this.auto) {
+      if (!u.alive || skip) { endTurn(this.st, u); this.drawDanger(); continue; }
+      const pend = resolvePending(this.st, u);
+      if (pend) {
+        await wait(this, 250 / this.speed);
+        await this.playEvents(u, pend);
+      } else if (u.side === 'enemy' || this.auto) {
         await this.aiAct(u);
       } else {
         this.moved = false;
@@ -576,6 +643,7 @@ export class BattleScene extends Phaser.Scene {
       deaths: this.deaths,
       kills: Object.fromEntries(this.st.units.filter((u) => u.side === 'ally' && u.charId).map((u) => [u.charId!, u.kills])),
       cheatDeathUsed: this.st.cheatUsed,
+      bonusEssence: this.st.bonusEssence,
     };
     const summary = store.battleFinished(res);
     this.hud.showResult(victory, summary);

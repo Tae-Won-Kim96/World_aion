@@ -43,7 +43,12 @@ export interface Unit {
   cheatDeath: number;
   kills: number;
   level: number;
+  pending?: Pending;
+  phasesDone?: number[];
 }
+
+/** 예고 공격: 다음 자기 턴 시작 시 발동 */
+export interface Pending { skill: string; x: number; y: number; tiles: { x: number; y: number }[] }
 
 export interface Obstacle { x: number; y: number; kind: string }
 
@@ -57,6 +62,10 @@ export type BEvent =
   | { t: 'push'; dst: string; x: number; y: number }
   | { t: 'dot'; dst: string; amount: number; id: StatusId }
   | { t: 'stun'; dst: string }
+  | { t: 'charge'; src: string; name: string; tiles: { x: number; y: number }[] }
+  | { t: 'interrupt'; src: string }
+  | { t: 'phase'; src: string; text: string }
+  | { t: 'spawn'; uid: string }
   | { t: 'log'; text: string };
 
 export interface BattleState {
@@ -71,6 +80,9 @@ export interface BattleState {
   over: null | 'victory' | 'defeat';
   log: string[];
   cheatUsed: string[];
+  relics: string[];
+  spawnN: number;
+  bonusEssence: number;
 }
 
 export interface Action { id: string; name: string; skill: SkillDef; isAttack: boolean }
@@ -129,6 +141,7 @@ export interface BattleInput {
   party: { char: Character; hp: number }[];
   spec: BattleSpec;
   morale: number;
+  relics?: string[];
 }
 
 export function createBattle(input: BattleInput): BattleState {
@@ -136,6 +149,7 @@ export function createBattle(input: BattleInput): BattleState {
   const st: BattleState = {
     w: GRID_W, h: GRID_H, obstacles: [], units: [], turn: 0, rng,
     darkness: input.spec.darkness, morale: input.morale, over: null, log: [], cheatUsed: [],
+    relics: [...(input.relics ?? [])], spawnN: 0, bonusEssence: 0,
   };
   const allies = input.party.filter((p) => p.hp > 0).map((p) => unitFromChar(p.char, p.hp, input.morale));
   const enemies = input.spec.enemies.map((e, i) => unitFromEnemy(e.def, e.level, e.seed, i));
@@ -176,11 +190,20 @@ export function createBattle(input: BattleInput): BattleState {
     else taken.add(`${x},${y}`);
   }
 
+  const has = (r: string) => st.relics.includes(r);
   for (const u of st.units) {
     u.ct = rng.int(0, 30) + u.stats.spd * 2;
     if (u.eff.firstStrike) u.ct += 60;
     if (u.side === 'enemy' && input.spec.ambush) u.ct += 60;
     if (u.eff.cowardice > 0 && rng.chance(u.eff.cowardice)) u.statuses.push({ id: 'slow', turns: 2 });
+    if (u.side !== 'ally') continue;
+    // 유물 (원정 한정 파티 효과)
+    if (has('iron_boots')) u.stats.mov += 1;
+    if (has('wolf_fang')) u.stats.crit += 8;
+    if (has('black_contract')) { u.eff.dmgMul *= 1.15; u.eff.dmgTakenMul *= 1.1; }
+    if (has('ward_crest')) u.statuses.push({ id: 'shield', turns: 3, value: Math.round(1.5 * Math.max(u.stats.mag, u.stats.def)) });
+    if (has('war_drum')) u.statuses.push({ id: 'bless', turns: 2 });
+    if (has('wind_feather')) { u.statuses.push({ id: 'haste', turns: 2 }); u.ct += 20; }
   }
   if (input.spec.ambush) st.log.push('기습당했다! 적이 먼저 움직인다.');
   return st;
@@ -296,13 +319,15 @@ export function startTurn(st: BattleState, u: Unit, ev: BEvent[]): boolean {
   const dots: [StatusId, number][] = [['bleed', 0.05], ['poison', 0.06], ['burn', 0.07]];
   for (const [id, pct] of dots) {
     if (!hasStatus(u, id)) continue;
-    const amount = Math.max(1, Math.round(u.maxHp * pct));
+    let amount = Math.max(1, Math.round(u.maxHp * pct));
+    if (u.side === 'ally' && st.relics.includes('holy_vial')) amount = Math.max(1, Math.ceil(amount / 2));
     u.hp -= amount;
     ev.push({ t: 'dot', dst: u.uid, amount, id });
     if (u.hp <= 0) {
       handleLethal(st, u, STATUS_NAMES[id], ev);
       if (!u.alive) return true;
     }
+    checkPhases(st, u, ev);
   }
   let regen = u.eff.regen;
   if (hasStatus(u, 'regen')) regen += 0.08;
@@ -314,9 +339,82 @@ export function startTurn(st: BattleState, u: Unit, ev: BEvent[]): boolean {
   }
   if (hasStatus(u, 'stun')) {
     ev.push({ t: 'stun', dst: u.uid });
+    if (u.pending) {
+      u.pending = undefined;
+      ev.push({ t: 'interrupt', src: u.uid });
+      ev.push({ t: 'log', text: `${u.name}의 영창이 끊겼다!` });
+    }
     return true;
   }
   return false;
+}
+
+/** 위험 칸: side 진영을 노리는 예고 공격 범위 */
+export function dangerTiles(st: BattleState, side: Unit['side']): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (const u of st.units) if (u.alive && u.side !== side && u.pending) out.push(...u.pending.tiles);
+  return out;
+}
+
+/** 예고했던 공격을 발동. 없으면 null */
+export function resolvePending(st: BattleState, u: Unit): BEvent[] | null {
+  const p = u.pending;
+  if (!p || !u.alive) return null;
+  u.pending = undefined;
+  const sk = SKILLS[p.skill];
+  return performAction(st, u, { id: p.skill, name: sk.name, skill: sk, isAttack: false }, p.x, p.y, true);
+}
+
+/** 소환: near 주변 빈 칸에 적 생성 */
+export function spawnEnemies(st: BattleState, defId: string, count: number, near: Unit, ev: BEvent[]): void {
+  const seen = new Set<string>([`${near.x},${near.y}`]);
+  const q = [{ x: near.x, y: near.y }];
+  const free: { x: number; y: number }[] = [];
+  while (q.length && free.length < count) {
+    const p = q.shift()!;
+    for (const [dx, dy] of DIRS) {
+      const nx = p.x + dx;
+      const ny = p.y + dy;
+      const k = `${nx},${ny}`;
+      if (seen.has(k) || blocked(st, nx, ny)) continue;
+      seen.add(k);
+      q.push({ x: nx, y: ny });
+      if (!unitAt(st, nx, ny)) free.push({ x: nx, y: ny });
+    }
+  }
+  for (const t of free.slice(0, count)) {
+    const unit = unitFromEnemy(defId, Math.max(1, near.level - 3), st.rng.seed32(), 0);
+    unit.uid = `s${st.spawnN++}_${defId}`;
+    unit.side = near.side;
+    unit.x = t.x;
+    unit.y = t.y;
+    unit.ct = 40;
+    st.units.push(unit);
+    ev.push({ t: 'spawn', uid: unit.uid });
+  }
+}
+
+/** 보스/정예 페이즈 */
+function checkPhases(st: BattleState, u: Unit, ev: BEvent[]): void {
+  if (!u.alive || !u.enemyDef) return;
+  const phases = ENEMIES[u.enemyDef]?.phases;
+  if (!phases) return;
+  phases.forEach((ph, i) => {
+    if (u.phasesDone?.includes(i) || u.hp / u.maxHp > ph.at) return;
+    (u.phasesDone ??= []).push(i);
+    ev.push({ t: 'phase', src: u.uid, text: ph.text });
+    for (const sa of ph.selfStatus ?? []) applyStatus(st, u, u, sa, ev);
+    if (ph.heal) {
+      const amt = Math.min(Math.round(u.maxHp * ph.heal), u.maxHp - u.hp);
+      u.hp += amt;
+      if (amt > 0) ev.push({ t: 'heal', src: u.uid, dst: u.uid, amount: amt });
+    }
+    for (const id of ph.addSkills ?? []) {
+      if (!u.skills.includes(id)) u.skills.push(id);
+      u.cd[id] = Math.max(1, (SKILLS[id]?.cooldown ?? 3) - 2);
+    }
+    if (ph.summon) spawnEnemies(st, ph.summon.def, ph.summon.count, u, ev);
+  });
 }
 
 export function endTurn(st: BattleState, u: Unit): void {
@@ -529,23 +627,59 @@ function dealDamage(st: BattleState, u: Unit, t: Unit, s: SkillDef, ev: BEvent[]
   ev.push({ t: 'dmg', src: u.uid, dst: t.uid, amount: dmg, crit, fx: s.fx });
   if (t.hp <= 0) {
     handleLethal(st, t, u.name, ev);
-    if (!t.alive) u.kills++;
+    if (!t.alive) {
+      u.kills++;
+      if (u.side === 'ally') onAllyKill(st, u, ev);
+    }
+  }
+  checkPhases(st, t, ev);
+  // 가시 갑옷: 근접 피해 반사
+  if (t.side === 'ally' && st.relics.includes('thorn_mail') && dmg > 0 && u.alive && dist(u, t) === 1) {
+    const back = Math.max(1, Math.round(dmg * 0.2));
+    u.hp -= back;
+    ev.push({ t: 'dmg', src: t.uid, dst: u.uid, amount: back, crit: false, fx: 'pierce' });
+    if (u.hp <= 0) {
+      handleLethal(st, u, '가시 갑옷', ev);
+      if (!u.alive) t.kills++;
+    }
+    checkPhases(st, u, ev);
   }
   return dmg;
 }
 
+function onAllyKill(st: BattleState, u: Unit, ev: BEvent[]): void {
+  if (st.relics.includes('bloody_grail') && u.alive) {
+    const amt = Math.min(Math.round(u.maxHp * 0.1), u.maxHp - u.hp);
+    if (amt > 0) { u.hp += amt; ev.push({ t: 'heal', src: u.uid, dst: u.uid, amount: amt }); }
+  }
+  if (st.relics.includes('finger_bone') && st.rng.chance(0.08)) {
+    st.bonusEssence++;
+    ev.push({ t: 'log', text: '성자의 손가락뼈가 떨린다… 피의 정수 +1' });
+  }
+}
+
 /** 행동 실행 */
-export function performAction(st: BattleState, u: Unit, a: Action, tx: number, ty: number): BEvent[] {
+export function performAction(st: BattleState, u: Unit, a: Action, tx: number, ty: number, resolving = false): BEvent[] {
   const ev: BEvent[] = [];
   const s = a.skill;
-  const targets = affectedUnits(st, u, a, tx, ty);
   const cx = s.target === 'self' ? u.x : tx;
   const cy = s.target === 'self' ? u.y : ty;
+  if (s.charge && !resolving) {
+    const tiles: { x: number; y: number }[] = [];
+    for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) if (!blocked(st, x, y) && dist({ x, y }, { x: cx, y: cy }) <= s.area) tiles.push({ x, y });
+    u.pending = { skill: a.id, x: cx, y: cy, tiles };
+    ev.push({ t: 'charge', src: u.uid, name: a.name, tiles });
+    ev.push({ t: 'log', text: `${u.name}이(가) 「${a.name}」을(를) 영창한다! 붉은 칸에서 벗어나라.` });
+    if (s.cooldown > 0) u.cd[a.id] = s.cooldown;
+    return ev;
+  }
+  const targets = affectedUnits(st, u, a, tx, ty);
   ev.push({ t: 'cast', src: u.uid, fx: s.fx, x: cx, y: cy, area: s.area, projectile: !!s.projectile, name: a.name });
   if (s.hpCost) {
     const cost = Math.round(u.maxHp * s.hpCost);
     u.hp = Math.max(1, u.hp - cost);
   }
+  if (s.kind === 'summon' && s.summon) spawnEnemies(st, s.summon.def, s.summon.count, u, ev);
   let dealt = 0;
   for (const t of targets) {
     if (!t.alive) continue;
@@ -576,7 +710,7 @@ export function performAction(st: BattleState, u: Unit, a: Action, tx: number, t
     const amt = Math.min(Math.round(dealt * ls), u.maxHp - u.hp);
     if (amt > 0) { u.hp += amt; ev.push({ t: 'heal', src: u.uid, dst: u.uid, amount: amt }); }
   }
-  if (s.cooldown > 0) u.cd[a.id] = s.cooldown;
+  if (s.cooldown > 0 && !resolving) u.cd[a.id] = s.cooldown;
   checkOver(st);
   return ev;
 }

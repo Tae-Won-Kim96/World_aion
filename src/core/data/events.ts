@@ -28,7 +28,9 @@ export type Fx =
   | { rep: FactionId; n: number }
   | { exp: number; who?: Who }
   | { fight: 'battle' | 'elite' }
-  | { recruit: number };
+  | { recruit: number }
+  | { item: number }
+  | { relic: true };
 
 export interface Outcome {
   w: number;
@@ -149,7 +151,7 @@ export const EVENTS: EventDef[] = [
       {
         label: '뒤진다',
         outcomes: [
-          { w: 60, text: '값나가는 물건을 몇 개 찾았다.', fx: [{ gold: 45 }] },
+          { w: 60, text: '쓸만한 장비와 값나가는 물건을 찾았다.', fx: [{ gold: 25 }, { item: 1 }] },
           { w: 40, text: '녹슨 칼날에 {actor}이(가) 베였다.', fx: [{ hurt: 0.15, who: 'random' }, { gold: 10 }] },
         ],
       },
@@ -269,11 +271,29 @@ export const EVENTS: EventDef[] = [
       {
         label: '연다',
         outcomes: [
-          { w: 50, text: '부장품이 가득하다!', fx: [{ gold: 110 }] },
+          { w: 50, text: '부장품이 가득하다!', fx: [{ gold: 80 }, { item: 2 }] },
           { w: 50, text: '관 속의 망자가 눈을 떴다!', fx: [{ fight: 'battle' }, { gold: 80 }] },
         ],
       },
       { label: '지나친다', outcomes: [{ w: 1, text: '죽은 자는 잠들게 두자.', fx: [] }] },
+    ],
+  },
+  {
+    id: 'reliquary_box', title: '잊힌 성물함', weight: 6,
+    text: '먼지 쌓인 제단 위에 자물쇠가 채워진 작은 함이 놓여 있다. 안에서 무언가가 희미하게 빛난다.',
+    options: [
+      {
+        label: '기도를 올린 뒤 연다', req: { any: [{ role: ['healer'] }, { trait: ['devout', 'zealot'] }, { cls: ['exorcist', 'paladin'] }] }, reqText: '치유 직업 / 독실함 / 퇴마사·성기사',
+        outcomes: [{ w: 1, text: '{actor}의 기도에 자물쇠가 저절로 풀렸다.', fx: [{ relic: true }] }],
+      },
+      {
+        label: '자물쇠를 부순다',
+        outcomes: [
+          { w: 65, text: '함 속에서 오래된 유물이 나왔다!', fx: [{ relic: true }] },
+          { w: 35, text: '함을 여는 순간 검은 연기가 {actor}을(를) 감쌌다.', fx: [{ addTrait: 'curse', who: 'random' }, { gold: 30 }] },
+        ],
+      },
+      { label: '그냥 둔다', outcomes: [{ w: 1, text: '건드리지 않는 편이 나을지도.', fx: [] }] },
     ],
   },
   {

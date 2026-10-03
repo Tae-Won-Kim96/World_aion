@@ -247,6 +247,14 @@ export const CLASSES: Record<string, ClassDef> = Object.fromEntries(
       gear: { weapon: ['wand', 'book'], offhand: ['none'], head: ['hood', 'none'], outfit: ['robe', 'dress'], palette: [P.blood, P.night, P.rose] },
       affinity: { nightcourt: 2, radiance: -2 }, notRaces: ['angel', 'divine'],
     },
+    {
+      id: 'bloodlord', name: '혈주', role: 'melee', weight: 0, desc: '피로 기술을 흡수하는 저택의 주인. 배운 기술 중 셋을 골라 쓴다.',
+      base: st(60, 12, 12, 6, 6, 12, 4, 8), growth: { hp: 6, atk: 1.3, mag: 1.3, def: 0.7, res: 0.7, spd: 0.5 },
+      attack: { name: '혈검', kind: 'phys', range: [1, 1], fx: 'blood' },
+      skills: ['lord_fang'],
+      gear: { weapon: ['sword'], offhand: ['none'], head: ['circlet'], outfit: ['coat'], palette: [['#2a1020', '#c9a227']] },
+      affinity: { nightcourt: 1 }, races: ['dhampir'],
+    },
   ] as ClassDef[]).map((c) => [c.id, c]),
 );
 

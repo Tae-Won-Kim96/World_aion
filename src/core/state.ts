@@ -3,28 +3,36 @@ import { DUNGEONS } from './data/dungeons';
 import { ENEMIES } from './data/enemies';
 import { EVENTS, type Fx, type Who } from './data/events';
 import { FACTION_IDS, FACTIONS } from './data/factions';
+import { RELICS, RELIC_IDS } from './data/relics';
+import { SKILLS } from './data/skills';
 import { BLESSING_LIST, CURSE_LIST, TRAITS } from './data/traits';
 import {
   type BattleSpec, generateMap, makeBattle, makeShop, NODE_NAMES, pickEvent, reachable, type RunState,
-  condMatch, torchCost,
+  condMatch, itemLevel, torchCost,
 } from './dungeon';
 import { makeEpitaph } from './epitaph';
 import { pull, PULL10_COST, PULL_COST, ROSTER_CAP, type Pity } from './gacha';
 import { generateCharacter } from './gen/character';
+import { generateItem, type ItemGenOpts, itemValue } from './gen/item';
 import { freshSeed, mixSeed, Rng } from './rng';
 import { computeEffects, computeStats, expToNext, fullName, levelCap } from './stats';
-import type { Character, FactionId, Grave, Star } from './types';
+import type { Character, FactionId, GearSlot, Grave, Item, Star } from './types';
 import { applyTurn, canTurn, DORMANT_RUNS, lordExpFromTurn, lordExpToNext, turnCost, vampireSlots } from './vampire';
 
 export const SAVE_KEY = 'world_aion_save_v1';
 export const PARTY_SIZE = 4;
+export const STASH_CAP = 60;
+export const LORD_ID = 'lord';
+export const LORD_SLOTS = 3;
+export const LORD_LEARN_CHANCE = 0.3;
 
 export interface SaveData {
   version: 1;
   createdAt: number;
   gold: number;
   essence: number;
-  lord: { level: number; exp: number };
+  lord: { level: number; exp: number; learned: string[]; equipped: string[] };
+  lordChar: Character;
   roster: Character[];
   graveyard: Grave[];
   rep: Record<FactionId, number>;
@@ -34,6 +42,7 @@ export interface SaveData {
   run: RunState | null;
   news: { t: number; text: string }[];
   stats: { deaths: number; turned: number; victories: number; runs: number; recruited: number };
+  stash: Item[];
 }
 
 export interface BattleResult {
@@ -42,11 +51,14 @@ export interface BattleResult {
   deaths: { id: string; by: string }[];
   kills: Record<string, number>;
   cheatDeathUsed: string[];
+  bonusEssence?: number;
 }
 
 export interface RewardSummary {
   gold: number;
   essence: number;
+  items?: Item[];
+  relics?: string[];
   exp: { id: string; name: string; gained: number; levels: number }[];
   lines: string[];
 }
@@ -71,6 +83,19 @@ function starter(seedBase: number): Character[] {
   });
 }
 
+/** 혈주(플레이어) 유닛 */
+export function makeLord(seed: number): Character {
+  const rng = new Rng(mixSeed(seed, 'lord'));
+  return {
+    id: LORD_ID, seed: rng.seed32(), given: '혈주', surname: '', gender: rng.pick(['m', 'f'] as const),
+    race: 'dhampir', cls: 'bloodlord', star: 3, level: 1, exp: 0,
+    traits: [], curses: [], blessings: [], skills: ['lord_fang'], roll: {},
+    vampire: false, dormant: 0, kills: 0, runs: 0, createdAt: Date.now(), isLord: true,
+  };
+}
+
+export const LORD_START_SKILLS = ['quick_slash', 'shadow_bolt'];
+
 export function newGame(seed = freshSeed()): SaveData {
   const rep = Object.fromEntries(FACTION_IDS.map((f) => [f, 0])) as Record<FactionId, number>;
   rep.nightcourt = 10;
@@ -80,7 +105,8 @@ export function newGame(seed = freshSeed()): SaveData {
     createdAt: Date.now(),
     gold: 1000,
     essence: 2,
-    lord: { level: 1, exp: 0 },
+    lord: { level: 1, exp: 0, learned: [...LORD_START_SKILLS], equipped: [...LORD_START_SKILLS] },
+    lordChar: makeLord(seed),
     roster: starter(seed),
     graveyard: [],
     rep,
@@ -90,7 +116,21 @@ export function newGame(seed = freshSeed()): SaveData {
     run: null,
     news: [{ t: Date.now(), text: '혈주가 오랜 잠에서 깨어났다. 폐허가 된 저택에 네 명의 떠돌이가 찾아왔다.' }],
     stats: { deaths: 0, turned: 0, victories: 0, runs: 0, recruited: 0 },
+    stash: [],
   };
+}
+
+/** 예전 저장 데이터에 새 필드를 채운다 */
+export function migrate(d: SaveData): SaveData {
+  d.stash ??= [];
+  d.lord.learned ??= [...LORD_START_SKILLS];
+  d.lord.equipped ??= [...LORD_START_SKILLS];
+  d.lordChar ??= makeLord(d.createdAt ?? 1);
+  if (d.run) {
+    d.run.loot ??= [];
+    d.run.relics ??= [];
+  }
+  return d;
 }
 
 const hasStorage = () => typeof localStorage !== 'undefined';
@@ -100,7 +140,7 @@ export class Store {
   private listeners = new Set<() => void>();
 
   constructor(data?: SaveData) {
-    this.s = data ?? this.load() ?? newGame();
+    this.s = migrate(data ?? this.load() ?? newGame());
   }
 
   // ------------------------------------------------------------ 기본
@@ -110,7 +150,7 @@ export class Store {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return null;
       const d = JSON.parse(raw) as SaveData;
-      return d.version === 1 ? d : null;
+      return d.version === 1 ? migrate(d) : null;
     } catch {
       return null;
     }
@@ -139,7 +179,47 @@ export class Store {
   }
 
   char(id: string): Character | undefined {
+    if (id === LORD_ID) return this.lord();
     return this.s.roster.find((c) => c.id === id);
+  }
+
+  /** 혈주 유닛 (레벨·장착 기술을 동기화해서 반환) */
+  lord(): Character {
+    const c = this.s.lordChar;
+    c.level = this.s.lord.level;
+    c.skills = ['lord_fang', ...this.s.lord.equipped.filter((id) => this.s.lord.learned.includes(id) && SKILLS[id])].slice(0, LORD_SLOTS + 1);
+    return c;
+  }
+
+  /** 혈주가 기술을 배운다. 새로 배웠으면 true */
+  lordLearn(skillId: string): boolean {
+    const L = this.s.lord;
+    if (!SKILLS[skillId] || L.learned.includes(skillId) || skillId === 'lord_fang') return false;
+    L.learned.push(skillId);
+    if (L.equipped.length < LORD_SLOTS) L.equipped.push(skillId);
+    return true;
+  }
+
+  toggleLordSkill(skillId: string): { ok: boolean; reason?: string } {
+    const L = this.s.lord;
+    if (this.s.run?.party.includes(LORD_ID)) return { ok: false, reason: '원정 중에는 바꿀 수 없다.' };
+    if (!L.learned.includes(skillId)) return { ok: false };
+    if (L.equipped.includes(skillId)) L.equipped = L.equipped.filter((s) => s !== skillId);
+    else if (L.equipped.length >= LORD_SLOTS) return { ok: false, reason: `기술은 ${LORD_SLOTS}개까지 장착할 수 있다.` };
+    else L.equipped.push(skillId);
+    this.save();
+    return { ok: true };
+  }
+
+  private lordGainExp(exp: number): string[] {
+    const msgs: string[] = [];
+    this.s.lord.exp += Math.round(exp);
+    while (this.s.lord.exp >= lordExpToNext(this.s.lord.level)) {
+      this.s.lord.exp -= lordExpToNext(this.s.lord.level);
+      this.s.lord.level++;
+      msgs.push(`혈주 레벨 ${this.s.lord.level}! 뱀파이어 한도 ${vampireSlots(this.s.lord.level)}명.`);
+    }
+    return msgs;
   }
 
   vampireCount(): number {
@@ -170,6 +250,7 @@ export class Store {
     if (this.s.run?.party.includes(id)) return { ok: false, reason: '원정 중인 동료다.' };
     const ch = this.char(id);
     if (!ch) return { ok: false, reason: '없는 동료다.' };
+    if (ch.isLord) return { ok: false, reason: '혈주는 저택을 떠날 수 없다.' };
     const gold = 10 * ch.star;
     this.s.roster = this.s.roster.filter((c) => c.id !== id);
     this.s.gold += gold;
@@ -195,12 +276,9 @@ export class Store {
     const msgs = applyTurn(ch);
     const exp = lordExpFromTurn(ch);
     msgs.push(`혈주가 피를 마시고 경험치 ${exp}를 얻었다.`);
-    this.s.lord.exp += exp;
-    while (this.s.lord.exp >= lordExpToNext(this.s.lord.level)) {
-      this.s.lord.exp -= lordExpToNext(this.s.lord.level);
-      this.s.lord.level++;
-      msgs.push(`혈주 레벨 ${this.s.lord.level}! 뱀파이어 한도 ${vampireSlots(this.s.lord.level)}명.`);
-    }
+    msgs.push(...this.lordGainExp(exp));
+    const learned = ch.skills.filter((id) => this.lordLearn(id));
+    if (learned.length) msgs.push(`피와 함께 기술을 흡수했다: ${learned.map((id) => SKILLS[id].name).join(', ')}`);
     this.addRep('nightcourt', 3);
     this.addRep('radiance', -3);
     this.s.stats.turned++;
@@ -211,6 +289,12 @@ export class Store {
 
   // ------------------------------------------------------------ 경험치
   gainExp(ch: Character, amount: number): { gained: number; levels: number } {
+    if (ch.isLord) {
+      const before = this.s.lord.level;
+      const gained = Math.round(amount);
+      this.lordGainExp(gained);
+      return { gained, levels: this.s.lord.level - before };
+    }
     if (ch.vampire) return { gained: 0, levels: 0 };
     const gained = Math.round(amount * computeEffects(ch).expMul);
     const cap = levelCap(ch.star);
@@ -255,7 +339,7 @@ export class Store {
       current: null, visited: [], party: [...party],
       hp: Object.fromEntries(chars.map((c) => [c.id, computeStats(c).hp])),
       fallen: [], torch: 100, gold: 0, essence: 0, recruits: [], log: [],
-      phase: 'map', usedEvents: [], step: 0,
+      phase: 'map', usedEvents: [], step: 0, loot: [], relics: [],
     };
     this.s.stats.runs++;
     this.save();
@@ -288,7 +372,7 @@ export class Store {
     run.step++;
     run.current = nodeId;
     run.visited.push(nodeId);
-    run.torch = Math.max(0, run.torch - torchCost(party));
+    run.torch = Math.max(0, run.torch - torchCost(party, run.relics));
     run.notice = undefined;
     const node = run.nodes.find((n) => n.id === nodeId)!;
     const rng = this.runRng('node');
@@ -308,7 +392,7 @@ export class Store {
         const lines: string[] = [];
         for (const c of party) {
           const max = computeStats(c).hp;
-          const pct = 0.35 + computeEffects(c).surviveBonus;
+          const pct = 0.35 + computeEffects(c).surviveBonus + (run.relics.includes('camp_kit') ? 0.25 : 0);
           const before = run.hp[c.id];
           run.hp[c.id] = Math.min(max, before + Math.round(max * pct));
           lines.push(`${fullName(c)} 체력 +${run.hp[c.id] - before}`);
@@ -322,6 +406,8 @@ export class Store {
         const gold = Math.round((40 + rng.int(0, 50) + node.layer * 10) * this.partyGoldMul(party));
         run.gold += gold;
         const lines = [`금화 ${gold}을(를) 발견했다.`];
+        if (rng.chance(0.55)) this.grantItem({ ilvl: itemLevel(run) }, rng, lines);
+        if (rng.chance(0.3)) this.grantRelic(rng, lines);
         if (rng.chance(0.25)) { run.essence++; lines.push('피의 정수가 담긴 유리병을 찾았다!'); }
         else if (rng.chance(0.12) && party.length) {
           const who = rng.pick(party);
@@ -333,7 +419,7 @@ export class Store {
       }
       case 'shop': {
         const disc = Math.max(0, ...party.map((c) => computeEffects(c).shopDiscount));
-        run.shop = makeShop(rng, disc);
+        run.shop = makeShop(rng, disc, itemLevel(run));
         run.phase = 'shop';
         break;
       }
@@ -346,7 +432,70 @@ export class Store {
   partyGoldMul(party: Character[]): number {
     let m = 1;
     for (const c of party) m += computeEffects(c).goldMul - 1;
+    if (this.s.run?.relics.includes('golden_scale')) m += 0.25;
     return Math.max(0.3, m);
+  }
+
+  /** 원정 전리품에 장비 추가 */
+  grantItem(o: ItemGenOpts, rng: Rng, lines?: string[]): Item | null {
+    const run = this.s.run;
+    if (!run) return null;
+    const it = generateItem(rng.seed32(), o);
+    run.loot.push(it);
+    lines?.push(`장비 「${it.name}」 획득`);
+    return it;
+  }
+
+  /** 아직 없는 유물 하나 */
+  grantRelic(rng: Rng, lines?: string[]): string | null {
+    const run = this.s.run;
+    if (!run) return null;
+    const pool = RELIC_IDS.filter((r) => !run.relics.includes(r));
+    if (!pool.length) return null;
+    const id = rng.pick(pool);
+    run.relics.push(id);
+    lines?.push(`유물 「${RELICS[id].name}」 — ${RELICS[id].desc}`);
+    return id;
+  }
+
+  // ------------------------------------------------------------ 장비
+  equip(charId: string, itemId: string): { ok: boolean; reason?: string } {
+    const ch = this.char(charId);
+    const idx = this.s.stash.findIndex((i) => i.id === itemId);
+    if (!ch || idx < 0) return { ok: false, reason: '장착할 수 없다.' };
+    if (this.s.run?.party.includes(charId)) return { ok: false, reason: '원정 중인 동료다.' };
+    const it = this.s.stash[idx];
+    ch.gear ??= {};
+    const prev = ch.gear[it.slot];
+    this.s.stash.splice(idx, 1);
+    if (prev) this.s.stash.push(prev);
+    ch.gear[it.slot] = it;
+    this.save();
+    return { ok: true };
+  }
+
+  unequip(charId: string, slot: GearSlot): { ok: boolean; reason?: string } {
+    const ch = this.char(charId);
+    const it = ch?.gear?.[slot];
+    if (!ch || !it) return { ok: false };
+    if (this.s.run?.party.includes(charId)) return { ok: false, reason: '원정 중인 동료다.' };
+    if (this.s.stash.length >= STASH_CAP) return { ok: false, reason: '창고가 가득 찼다.' };
+    delete ch.gear![slot];
+    this.s.stash.push(it);
+    this.save();
+    return { ok: true };
+  }
+
+  salvage(itemIds: string[]): number {
+    let gold = 0;
+    this.s.stash = this.s.stash.filter((it) => {
+      if (!itemIds.includes(it.id)) return true;
+      gold += itemValue(it);
+      return false;
+    });
+    this.s.gold += gold;
+    this.save();
+    return gold;
   }
 
   buy(itemId: string): { ok: boolean; reason?: string } {
@@ -361,6 +510,7 @@ export class Store {
     if (itemId === 'bandage') for (const c of party) run.hp[c.id] = Math.min(computeStats(c).hp, run.hp[c.id] + Math.round(computeStats(c).hp * 0.35));
     if (itemId === 'holywater') { const c = party.find((p) => p.curses.length); if (c) c.curses.shift(); }
     if (itemId === 'essence') run.essence++;
+    if (itemId === 'gear' && item.item) run.loot.push(item.item);
     this.save();
     return { ok: true };
   }
@@ -461,6 +611,10 @@ export class Store {
       }
     } else if ('fight' in fx) {
       return fx.fight;
+    } else if ('item' in fx) {
+      this.grantItem({ ilvl: itemLevel(run), minRarity: Math.min(4, Math.max(1, fx.item)) as 1 }, rng, lines);
+    } else if ('relic' in fx) {
+      if (!this.grantRelic(rng, lines)) { run.gold += 60; lines.push('이미 가진 유물뿐이다. 금화 +60'); }
     } else if ('recruit' in fx) {
       const seed = rng.seed32();
       const ch = generateCharacter(seed, { star: rng.chance(0.2) ? 3 : rng.chance(0.5) ? 2 : 1 });
@@ -528,10 +682,38 @@ export class Store {
     summary.gold = gold;
     if (spec.elite) { run.essence += 1; summary.essence += 1; }
     if (spec.boss) { run.essence += 2; summary.essence += 2; }
-    run.essence += 0;
+    if (res.bonusEssence) { run.essence += res.bonusEssence; summary.essence += res.bonusEssence; }
+    // 전리품
+    const drop = this.runRng('drop');
+    const lootLines: string[] = [];
+    const items: Item[] = [];
+    const relics: string[] = [];
+    const ilvl = itemLevel(run);
+    if (spec.boss) {
+      const it = this.grantItem({ ilvl: ilvl + 1, minRarity: 3, luck: 0.3, bossId: spec.enemies[0]?.def }, drop, lootLines);
+      if (it) items.push(it);
+    } else if (spec.elite) {
+      const it = this.grantItem({ ilvl, minRarity: 2 }, drop, lootLines);
+      if (it) items.push(it);
+      if (drop.chance(0.4)) { const r = this.grantRelic(drop, lootLines); if (r) relics.push(r); }
+    } else if (drop.chance(0.15)) {
+      const it = this.grantItem({ ilvl }, drop, lootLines);
+      if (it) items.push(it);
+    }
+    summary.items = items;
+    summary.relics = relics;
     for (const c of party) {
       const r = this.gainExp(c, exp);
       summary.exp.push({ id: c.id, name: fullName(c), gained: r.gained, levels: r.levels });
+    }
+    // 혈주의 기술 흡수 (함께 싸운 동료에게서)
+    if (party.some((c) => c.isLord) && drop.chance(LORD_LEARN_CHANCE)) {
+      const pool = party.filter((c) => !c.isLord).flatMap((c) => c.skills).filter((id) => !this.s.lord.learned.includes(id));
+      if (pool.length) {
+        const id = drop.pick(pool);
+        this.lordLearn(id);
+        summary.lines.push(`혈주가 전투 중 「${SKILLS[id].name}」을(를) 흡수했다!`);
+      }
     }
     run.battle = undefined;
     if (spec.boss) {
@@ -555,7 +737,11 @@ export class Store {
     const at = where ?? `${d.name} ${node?.kind === 'boss' ? '보스의 방' : `${node ? node.layer + 1 : '?'}층`}`;
     run.hp[c.id] = 0;
     let line: string;
-    if (c.vampire) {
+    if (c.isLord) {
+      c.dormant = 2;
+      run.fallen.push({ id: c.id, vampire: true, name: fullName(c) });
+      line = '혈주가 붉은 안개가 되어 흩어졌다… 저택에서 다시 형체를 갖출 것이다.';
+    } else if (c.vampire) {
       c.dormant = DORMANT_RUNS + 1;
       run.fallen.push({ id: c.id, vampire: true, name: fullName(c) });
       line = `${fullName(c)}은(는) 재가 되어 흩어졌다… 관 속에서 다시 깨어날 것이다.`;
@@ -632,15 +818,26 @@ export class Store {
       this.news(`원정대가 「${d.name}」에서 퇴각했다.`);
     }
     if (run.outcome !== 'wipe') {
+      let salvaged = 0;
+      for (const it of run.loot) {
+        if (this.s.stash.length < STASH_CAP) this.s.stash.push(it);
+        else salvaged += itemValue(it);
+      }
+      if (run.loot.length) lines.push(`장비 ${run.loot.length}개를 창고로`);
+      if (salvaged) { this.s.gold += salvaged; lines.push(`창고가 가득 차 일부를 분해 (금화 +${salvaged})`); }
+    } else if (run.loot.length) {
+      lines.push(`장비 ${run.loot.length}개를 잃었다`);
+    }
+    if (run.outcome !== 'wipe') {
       for (const r of run.recruits) {
         if (this.s.roster.length < ROSTER_CAP) { this.s.roster.push(r); lines.push(`${fullName(r)}이(가) 저택에 합류했다.`); }
       }
     }
     const fallenNow = new Set(run.fallen.map((f) => f.id));
-    for (const c of this.s.roster) {
+    for (const c of [...this.s.roster, this.s.lordChar]) {
       if (run.party.includes(c.id)) c.runs++;
       if (c.dormant > 0 && !fallenNow.has(c.id)) c.dormant--;
-      else if (c.dormant > 0 && fallenNow.has(c.id)) c.dormant = DORMANT_RUNS;
+      else if (c.dormant > 0 && fallenNow.has(c.id)) c.dormant = c.isLord ? 1 : DORMANT_RUNS;
     }
     this.s.run = null;
     this.save();

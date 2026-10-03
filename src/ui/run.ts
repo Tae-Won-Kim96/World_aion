@@ -9,7 +9,7 @@ import { store } from '../core/state';
 import { computeStats, fullName, partySynergy } from '../core/stats';
 import { app } from './app';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
-import { hpBar, starsEl } from './widgets';
+import { hpBar, itemRow, relicIcon, starsEl } from './widgets';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -27,6 +27,8 @@ function topBar(run: RunState): HTMLElement {
     '횃불은 이동할 때마다 줄어든다.\n어스름(50 미만): 기습 15%, 전리품 +10%, 적 피해 +5%\n칠흑(25 미만): 기습 35%, 전리품 +25%, 적 피해 +15%\n밤눈을 가진 동료는 어둠 패널티를 받지 않는다.'),
     h('span', { class: 'res' }, h('span', { class: 'gold' }, '◆'), `${run.gold}`),
     h('span', { class: 'res' }, h('span', { class: 'vamp' }, '●'), `${run.essence}`),
+    tooltip(h('span', { class: 'res' }, '▣', `${run.loot.length}`), run.loot.length ? `이번 원정 전리품\n${run.loot.map((i) => `· ${i.name}`).join('\n')}\n(전멸하면 잃는다)` : '이번 원정 전리품 없음'),
+    h('div', { class: 'relics' }, ...run.relics.map((r) => relicIcon(r, 24))),
     tooltip(h('span', { class: syn.morale > 0 ? 'good' : syn.morale < 0 ? 'bad' : 'dim' }, `사기 ${syn.morale > 0 ? '+' : ''}${syn.morale}`), '파티원 간 진영 상성으로 정해진다.'),
     h('span', { class: 'grow' }),
     h('span', { class: 'small mute' }, `원정 #${run.runNo} · ${party.length}명`),
@@ -189,7 +191,7 @@ function showShop(run: RunState): void {
       h('h2', null, '떠돌이 상인'),
       h('div', { class: 'dim' }, `"좋은 물건 있수다." — 이번 원정 금화: `, h('b', { class: 'gold' }, String(run.gold))),
       ...(run.shop ?? []).map((it) => h('div', { class: 'row', style: { padding: '6px 0', borderBottom: '1px dashed #3b3050' } },
-        h('div', { class: 'grow' }, h('b', null, it.name), h('div', { class: 'small dim' }, it.desc)),
+        it.item ? h('div', { class: 'grow' }, itemRow(it.item)) : h('div', { class: 'grow' }, h('b', null, it.name), h('div', { class: 'small dim' }, it.desc)),
         h('button', {
           class: 'btn small gold', disabled: !!it.sold || run.gold < it.price,
           onclick: () => { const r = store.buy(it.id); if (!r.ok) toast(r.reason!, 'warn'); render(); },
@@ -212,6 +214,7 @@ function showResult(run: RunState): void {
   if (run.outcome === 'retreat') lines.push('살아남은 자들이 짐을 챙겨 저택으로 돌아간다.');
   lines.push(`가져갈 금화: ${Math.round(run.gold * keep)} / ${run.gold}`);
   if (run.outcome !== 'wipe' && run.essence) lines.push(`피의 정수: ${run.essence}`);
+  if (run.loot.length) lines.push(run.outcome === 'wipe' ? `잃어버린 장비: ${run.loot.length}개` : `가져갈 장비: ${run.loot.map((i) => i.name).join(', ')}`);
   if (run.outcome !== 'wipe' && run.recruits.length) lines.push(`합류할 동료: ${run.recruits.map((r) => fullName(r)).join(', ')}`);
   const dead = run.fallen.filter((f) => !f.vampire);
   const dorm = run.fallen.filter((f) => f.vampire);

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { planTurn } from '../src/core/battle/ai';
-import { actionsOf, advance, type BEvent, createBattle, endTurn, moveUnit, performAction, predictOrder, startTurn } from '../src/core/battle/battle';
+import { aiTakeTurn } from '../src/core/battle/ai';
+import { actionsOf, advance, type BEvent, createBattle, endTurn, performAction, predictOrder, startTurn } from '../src/core/battle/battle';
 import { DUNGEONS } from '../src/core/data/dungeons';
 import { generateMap, makeBattle, type RunState } from '../src/core/dungeon';
 import { Rng } from '../src/core/rng';
@@ -21,11 +21,7 @@ function simulate(st: ReturnType<typeof setup>) {
   while (!st.over && turns < 600) {
     const u = advance(st);
     const ev: BEvent[] = [];
-    if (!startTurn(st, u, ev) && u.alive) {
-      const p = planTurn(st, u);
-      if (p.move) moveUnit(st, u, p.move.x, p.move.y);
-      if (p.action) performAction(st, u, p.action.a, p.action.x, p.action.y);
-    }
+    if (!startTurn(st, u, ev) && u.alive) aiTakeTurn(st, u);
     endTurn(st, u);
     turns++;
   }

@@ -207,6 +207,22 @@ export const RACES: Record<RaceId, RaceDef> = {
     },
     classBias: { hunter: 4, monk: 3, berserker: 2, rogue: 2, druid: 2 },
   },
+  // ---- 혈주 전용 ----
+  dhampir: {
+    id: 'dhampir', name: '반흡혈귀', weight: 0, minStar: 1,
+    desc: '인간과 흡혈귀 사이에서 태어난 자. 늙지 않고, 피로 배운다.',
+    statMod: { hp: 4, spd: 1 },
+    affinity: { nightcourt: 3, radiance: -2 },
+    canTurn: false, turnNote: '이미 절반은 흡혈귀다.',
+    tags: ['shadow'],
+    effects: { lifesteal: 0.1, nightVision: true },
+    look: {
+      skin: [['#f0e4ea', '#cdb8c4', '#fff6fa'], ['#e6dce8', '#c0b0c8', '#f8f2fa']],
+      hairColors: ['#e8e8f0', '#1a1018', '#8a1a2a', '#c9c0e8'],
+      eyeColors: ['#ff3a5a'],
+      ears: 'pointy',
+    },
+  },
   // ---- 적 전용 ----
   skeleton: {
     id: 'skeleton', name: '해골', weight: 0, minStar: 1, desc: '안식을 거부당한 뼈.',

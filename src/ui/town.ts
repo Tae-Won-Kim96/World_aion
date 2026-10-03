@@ -4,13 +4,16 @@ import { CLASSES } from '../core/data/classes';
 import { DUNGEONS } from '../core/data/dungeons';
 import { factionRelation, FACTIONS, FACTION_IDS } from '../core/data/factions';
 import { PITY5, PULL10_COST, PULL_COST, ROSTER_CAP } from '../core/gacha';
+import { RARITY_COLORS, SLOT_NAMES } from '../core/data/items';
 import { STAR_RATES } from '../core/gen/character';
-import { PARTY_SIZE, store } from '../core/state';
+import { itemValue } from '../core/gen/item';
+import { SKILLS } from '../core/data/skills';
+import { LORD_SLOTS, PARTY_SIZE, STASH_CAP, store } from '../core/state';
 import { compatibility, DISCORD_T, fullName, HARMONY_T, partySynergy, powerScore, topFactions } from '../core/stats';
-import type { Character, FactionId } from '../core/types';
+import type { Character, FactionId, GearSlot } from '../core/types';
 import { lordExpToNext, vampireSlots } from '../core/vampire';
 import { clear, closeAllModals, confirmBox, h, modal, setScreen, toast, tooltip } from './dom';
-import { charCard, charDetail, houseChip, raceClassLine, starsEl } from './widgets';
+import { charCard, charDetail, houseChip, itemRow, raceClassLine, starsEl } from './widgets';
 import { app } from './app';
 
 function resBar(): HTMLElement {
@@ -37,9 +40,11 @@ export function renderTown(): void {
     h('div', { class: 'town-menu' },
       menuBtn('⚔ 원정 출발', '던전으로 파티를 보낸다', openExpedition, 'primary'),
       menuBtn('✉ 모집소', `1회 ${PULL_COST} · 10회 ${PULL10_COST} 금화`, openRecruit, 'gold'),
+      menuBtn('♛ 혈주', `Lv.${s.lord.level} · 기술 ${s.lord.learned.length}개${s.lordChar.dormant ? ' · 휴면' : ''}`, openLord),
       menuBtn('☗ 동료', `${s.roster.length}명 · 흡혈 의식`, () => openRoster()),
       menuBtn('✝ 묘지', `${s.graveyard.length}개의 묘비`, openGraveyard),
       menuBtn('⚑ 진영', '세력별 호감도와 상성', openFactions),
+      menuBtn('▣ 창고', `장비 ${s.stash.length}/${STASH_CAP}`, openStash),
       menuBtn('⚙ 설정', '저장 데이터 관리', openSettings),
     ),
     h('div', { class: 'news panel' },
@@ -116,7 +121,7 @@ export function openRoster(focusId?: string): void {
     for (const ch of sorted()) list.appendChild(charCard(ch, { selected: ch.id === selected, onClick: (c) => { selected = c.id; render(); } }));
     clear(detailWrap);
     const ch = selected ? store.char(selected) : undefined;
-    if (ch) detailWrap.appendChild(charDetail(ch, actionsFor(ch)));
+    if (ch) detailWrap.appendChild(charDetail(ch, actionsFor(ch), (slot) => openGearPicker(ch, slot, render)));
     else detailWrap.appendChild(h('div', { class: 'dim' }, '동료가 없다. 모집소에서 새 동료를 찾아보자.'));
   };
   const actionsFor = (ch: Character): HTMLElement => {
@@ -155,6 +160,50 @@ export function openRoster(focusId?: string): void {
     h('div', { class: 'row', style: { marginRight: '28px' } }, h('h2', { style: { margin: 0 } }, '동료'), h('span', { class: 'grow' }), h('span', { class: 'small mute' }, '정렬'), ...sortBtns),
     h('div', { class: 'row', style: { alignItems: 'flex-start', gap: '14px' } }, list, detailWrap),
   ), { wide: true });
+}
+
+// ================================================================== 장비
+function openGearPicker(ch: Character, slot: GearSlot, onDone: () => void): void {
+  const cur = ch.gear?.[slot];
+  const items = store.s.stash.filter((i) => i.slot === slot).sort((a, b) => b.rarity - a.rarity || b.ilvl - a.ilvl);
+  const close = modal(h('div', { class: 'col', style: { width: '560px' } },
+    h('h2', null, `${fullName(ch)} — ${SLOT_NAMES[slot]}`),
+    cur ? h('div', { class: 'col', style: { gap: '4px' } },
+      h('span', { class: 'small dim' }, '장착 중'),
+      itemRow(cur, h('button', { class: 'btn small', onclick: () => { const r = store.unequip(ch.id, slot); if (!r.ok && r.reason) toast(r.reason, 'warn'); close(); onDone(); renderTown(); } }, '해제')),
+    ) : null,
+    h('span', { class: 'small dim' }, `창고의 ${SLOT_NAMES[slot]} (${items.length})`),
+    items.length
+      ? h('div', { class: 'col scroll', style: { gap: '4px', maxHeight: '420px' } }, ...items.map((it) =>
+        itemRow(it, h('button', { class: 'btn small primary', onclick: () => { const r = store.equip(ch.id, it.id); if (!r.ok && r.reason) toast(r.reason, 'warn'); close(); onDone(); renderTown(); } }, '장착'))))
+      : h('div', { class: 'dim small' }, '창고에 맞는 장비가 없다. 보물·정예·보스·상인에게서 얻을 수 있다.'),
+  ));
+}
+
+function openStash(): void {
+  const body = h('div', { class: 'col', style: { height: '100%' } });
+  const render = () => {
+    clear(body);
+    const stash = [...store.s.stash].sort((a, b) => b.rarity - a.rarity || a.slot.localeCompare(b.slot) || b.ilvl - a.ilvl);
+    const commons = stash.filter((i) => i.rarity === 1);
+    body.append(
+      h('div', { class: 'row', style: { marginRight: '28px' } },
+        h('h2', { style: { margin: 0 } }, `창고 — ${stash.length}/${STASH_CAP}`), h('span', { class: 'grow' }),
+        h('button', {
+          class: 'btn small danger', disabled: !commons.length,
+          onclick: () => confirmBox(`일반 등급 장비 ${commons.length}개를 분해한다. (금화 +${commons.reduce((a, i) => a + itemValue(i), 0)})`, '분해', () => { store.salvage(commons.map((i) => i.id)); render(); renderTown(); }, true),
+        }, '일반 등급 모두 분해'),
+      ),
+      h('div', { class: 'small dim' }, '동료 상세 화면의 장비 칸을 눌러 장착한다. 필멸자가 죽으면 장착한 장비도 함께 묻힌다.'),
+      stash.length
+        ? h('div', { class: 'items-grid scroll', style: { maxHeight: '560px' } }, ...stash.map((it) => itemRow(it,
+          h('button', { class: 'btn small', title: '분해', onclick: () => { store.salvage([it.id]); render(); renderTown(); } }, `분해 +${itemValue(it)}`))))
+        : h('div', { class: 'dim center', style: { marginTop: '120px', fontSize: '14px' } }, '창고가 비어 있다.'),
+      h('div', { class: 'small', style: { marginTop: '6px' } }, ...([1, 2, 3, 4] as const).map((r) => h('span', { class: 'chip', style: { color: RARITY_COLORS[r] } }, `${['', '일반', '고급', '희귀', '전설'][r]} ${stash.filter((i) => i.rarity === r).length}`))),
+    );
+  };
+  render();
+  modal(body, { wide: true });
 }
 
 // ================================================================== 묘지
@@ -211,6 +260,56 @@ function openFactions(): void {
 }
 
 // ================================================================== 설정
+// ================================================================== 혈주
+function openLord(): void {
+  const body = h('div', { class: 'col', style: { height: '100%' } });
+  const render = () => {
+    clear(body);
+    const lord = store.lord();
+    const L = store.s.lord;
+    const lordPct = (L.exp / lordExpToNext(L.level)) * 100;
+    const panel = h('div', { class: 'col', style: { width: '100%', gap: '4px', marginTop: '6px' } },
+      h('div', { class: 'small dim' }, `혈주 경험치 ${L.exp}/${lordExpToNext(L.level)}`),
+      h('div', { class: 'bar lord' }, h('i', { style: { width: `${lordPct}%` } })),
+      h('div', { class: 'small dim' }, `뱀파이어 한도 ${store.vampireCount()}/${vampireSlots(L.level)}`),
+      h('div', { class: 'small gold' }, `흡수한 기술 ${L.learned.length} · 장착 ${L.equipped.length}/${LORD_SLOTS}`),
+      h('button', { class: 'btn primary', onclick: () => openLordSkills(render) }, '기술 관리'),
+    );
+    body.append(
+      h('h2', { style: { marginRight: '28px' } }, '혈주'),
+      h('div', { class: 'small dim', style: { lineHeight: '1.6' } }, '혈주는 직접 원정에 나설 수 있다(파티 한 자리 차지). 흡혈한 동료의 기술을 모두 흡수하고, 함께 싸워 이기면 동료의 기술을 익히기도 한다. 쓰러져도 죽지 않고 원정 1회 동안 휴면한다.'),
+      charDetail(lord, panel, (slot) => openGearPicker(lord, slot, render)),
+    );
+  };
+  render();
+  modal(body, { wide: true });
+}
+
+function openLordSkills(onDone: () => void): void {
+  const body = h('div', { class: 'col', style: { width: '620px' } });
+  const render = () => {
+    clear(body);
+    const L = store.s.lord;
+    body.append(
+      h('h2', null, `혈주의 기술 — 장착 ${L.equipped.length}/${LORD_SLOTS}`),
+      h('div', { class: 'small dim' }, '「혈주의 송곳니」는 항상 사용할 수 있다. 나머지는 흡수한 기술 중에서 고른다.'),
+      h('div', { class: 'col scroll', style: { gap: '4px', maxHeight: '460px' } }, ...L.learned.map((id) => {
+        const sk = SKILLS[id];
+        const on = L.equipped.includes(id);
+        return h('div', { class: 'skill row', style: { alignItems: 'center' } },
+          h('div', { class: 'grow' }, h('b', null, sk.name), h('span', { class: 'dim small' }, ` · 사거리 ${sk.range[0]}-${sk.range[1]}${sk.area ? ` · 범위 ${sk.area}` : ''} · 재사용 ${sk.cooldown}턴`), h('div', { class: 'small' }, sk.desc)),
+          h('button', {
+            class: `btn small ${on ? 'on' : ''}`,
+            onclick: () => { const r = store.toggleLordSkill(id); if (!r.ok && r.reason) toast(r.reason, 'warn'); render(); onDone(); },
+          }, on ? '장착 중' : '장착'),
+        );
+      })),
+    );
+  };
+  render();
+  modal(body);
+}
+
 function openSettings(): void {
   const close = modal(h('div', { class: 'col', style: { width: '440px' } },
     h('h2', null, '설정'),
@@ -273,7 +372,7 @@ function openExpedition(): void {
     syn.appendChild(h('h3', null, '파티 상성'));
     syn.appendChild(pc.length ? synergyView(pc) : h('div', { class: 'dim small' }, '동료를 선택하면 진영 상성에 따른 화합/불화가 표시된다.'));
     clear(list);
-    for (const ch of [...store.s.roster].sort((a, b) => b.star - a.star || b.level - a.level)) {
+    for (const ch of [store.lord(), ...[...store.s.roster].sort((a, b) => b.star - a.star || b.level - a.level)]) {
       const j = store.canJoinParty(ch);
       const inParty = party.includes(ch.id);
       const card = charCard(ch, {

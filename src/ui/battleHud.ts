@@ -3,12 +3,14 @@ import {
   type Action, actionReady, actionsOf, BAD_STATUS, estimateDamage, predictOrder, STATUS_NAMES, type Unit,
 } from '../core/battle/battle';
 import { CLASSES, ROLE_NAMES } from '../core/data/classes';
+import { SKILLS } from '../core/data/skills';
 import { ENEMIES } from '../core/data/enemies';
 import { store, type RewardSummary } from '../core/state';
 import type { BattleScene } from '../scenes/BattleScene';
 import { app } from './app';
 import { clear, clearTips, confirmBox, h, modal, tooltip, uiRoot } from './dom';
-import { hpBar } from './widgets';
+import { hpBar, itemRow, relicIcon } from './widgets';
+import { RELICS } from '../core/data/relics';
 
 export class BattleHud {
   private root: HTMLElement;
@@ -39,8 +41,8 @@ export class BattleHud {
 
   private mini(u: Unit, now: boolean): HTMLElement {
     const look = this.scene.looks.get(u.uid)!;
-    const box = h('div', { class: `t ${u.side} ${now ? 'now' : ''}` }, spriteEl(look, 1.5, { still: true }));
-    return tooltip(box, `${u.name}\n체력 ${u.hp}/${u.maxHp}`);
+    const box = h('div', { class: `t ${u.side} ${now ? 'now' : ''} ${u.pending ? 'charging' : ''}` }, spriteEl(look, 1.5, { still: true }));
+    return tooltip(box, `${u.name}\n체력 ${u.hp}/${u.maxHp}${u.pending ? '\n⚠ 예고 공격 영창 중' : ''}`);
   }
 
   update(): void {
@@ -66,6 +68,9 @@ export class BattleHud {
       ),
     );
     const acts = h('div', { class: 'acts' });
+    if (ally && this.scene.inputMode && this.scene.inDanger(active)) {
+      acts.appendChild(h('div', { class: 'danger-tip' }, '⚠ 붉은 칸은 적의 예고 공격 범위다! 이동해서 피하자.'));
+    }
     if (ally && this.scene.inputMode) {
       actionsOf(active).forEach((a, i) => {
         const ready = actionReady(active, a);
@@ -118,6 +123,7 @@ export class BattleHud {
       h('div', { class: 'small dim', style: { marginTop: '4px', lineHeight: '1.6' } },
         `공격 ${s.atk} · 마력 ${s.mag} · 방어 ${s.def} · 저항 ${s.res}`, h('br'), `속도 ${s.spd} · 이동 ${s.mov} · 치명 ${s.crit}%`,
         u.tags.length ? h('div', null, `특징: ${u.tags.map((t) => TAG_NAMES[t] ?? t).join(', ')}`) : null,
+        u.pending ? h('div', { class: 'bad' }, `⚠ 영창 중: ${SKILLS[u.pending.skill]?.name ?? ''} — 다음 차례에 붉은 칸을 공격 (기절시키면 끊긴다)`) : null,
       ),
       this.statusIcons(u),
     );
@@ -146,16 +152,18 @@ export class BattleHud {
     this.logEl.append(...this.lines.map((l) => h('div', null, l)));
   }
 
-  banner(text: string): void {
-    const b = h('div', { class: 'banner' }, text);
+  banner(text: string, small = false): void {
+    const b = h('div', { class: `banner ${small ? 'small' : ''}` }, text);
     this.root.appendChild(b);
-    setTimeout(() => b.remove(), 1300);
+    setTimeout(() => b.remove(), small ? 2200 : 1300);
   }
 
   showResult(victory: boolean, sum: RewardSummary): void {
     modal(h('div', { class: 'col', style: { width: '500px' } },
       h('h2', { class: victory ? 'gold' : 'bad' }, victory ? '승리' : '패배'),
       victory ? h('div', null, `금화 +${sum.gold}${sum.essence ? ` · 피의 정수 +${sum.essence}` : ''}`) : h('div', { class: 'dim' }, '원정대가 무너졌다…'),
+      ...(sum.items ?? []).map((it) => itemRow(it)),
+      ...(sum.relics ?? []).map((r) => h('div', { class: 'row small' }, relicIcon(r, 24), h('span', { class: 'gold' }, `유물 「${RELICS[r].name}」 — ${RELICS[r].desc}`))),
       ...sum.exp.map((e) => h('div', { class: 'small' }, `${e.name}: ${e.gained ? `경험치 +${e.gained}` : '성장하지 않음'}${e.levels ? ` · 레벨 업! (+${e.levels})` : ''}`)),
       ...sum.lines.map((l) => h('div', { class: l.includes('관') ? 'vamp' : 'bad', style: { lineHeight: '1.6' } }, l)),
       h('div', { class: 'row end' }, h('button', { class: 'btn primary', onclick: () => app.route() }, '계속')),

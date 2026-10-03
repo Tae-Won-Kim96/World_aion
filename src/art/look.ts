@@ -64,12 +64,13 @@ export function lookFromCharacter(ch: Character): LookSpec {
   const weapon = rng.pick(c.gear.weapon);
   const offhand: OffhandKind = rng.pick<OffhandKind>(c.gear.offhand ?? ['none']);
   const outfit = rng.pick(c.gear.outfit);
-  const cape = house ? house.colors[0] : ch.star >= 4 && rng.chance(0.5) ? accent : ch.vampire ? '#5c0020' : null;
+  const cape = ch.isLord ? '#7a0a2a' : house ? house.colors[0] : ch.star >= 4 && rng.chance(0.5) ? accent : ch.vampire ? '#5c0020' : null;
+  if (ch.isLord) { head = 'circlet'; hairStyle = hairStyle === 'bald' ? 'swept' : hairStyle; }
 
   return {
     key: `ch_${ch.seed.toString(36)}_${ch.vampire ? 'v' : 'h'}_${ch.house ?? ''}`,
     race: ch.race, gender: ch.gender, skin, hair, hairStyle, eye, outfit, main, accent, head, weapon, offhand,
-    cape, feat, beard, blush: ch.gender !== 'm' && rng.chance(0.6), vampire: ch.vampire, scale: feat.height === 'tall' ? 1.05 : 1,
+    cape, feat, beard, blush: ch.gender !== 'm' && rng.chance(0.6), vampire: ch.vampire || !!ch.isLord, scale: feat.height === 'tall' ? 1.05 : 1,
     emblem: house?.emblem,
   };
 }

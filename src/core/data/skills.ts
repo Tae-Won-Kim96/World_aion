@@ -90,7 +90,16 @@ export const SKILLS: Record<string, SkillDef> = Object.fromEntries(
     S({ id: 'flame_jet', name: '화염 분사', desc: '장치에서 불길을 뿜는다.', kind: 'mag', target: 'tile', range: [1, 2], area: 1, power: 1.0, cooldown: 3, status: [{ id: 'burn', turns: 2, chance: 0.6 }], fx: 'fire' }),
     S({ id: 'gear_shield', name: '방어 장치', desc: '아군에게 기계식 방패를 씌운다.', kind: 'buff', target: 'ally', range: [0, 3], area: 0, power: 0, cooldown: 3, status: [{ id: 'shield', turns: 3, value: 2.0 }], fx: 'gear' }),
 
+    // ---- 혈주 ----
+    S({ id: 'lord_fang', name: '혈주의 송곳니', desc: '송곳니로 피를 빨아 상처를 메운다.', kind: 'phys', target: 'enemy', range: [1, 1], area: 0, power: 1.3, cooldown: 2, lifesteal: 0.6, fx: 'blood' }),
+
     // ---- 적 전용 ----
+    S({ id: 'unholy_requiem', name: '망자의 진혼곡', desc: '한 턴 동안 영창한 뒤, 표시된 범위를 죽음의 노래로 휩쓴다.', kind: 'mag', target: 'tile', range: [1, 6], area: 2, power: 1.9, cooldown: 4, charge: 1, status: [{ id: 'weak', turns: 2 }], fx: 'dark' }),
+    S({ id: 'abyssal_tide', name: '심연의 대해일', desc: '한 턴 동안 물을 끌어모은 뒤, 표시된 범위를 덮친다.', kind: 'mag', target: 'tile', range: [1, 6], area: 2, power: 1.7, cooldown: 4, charge: 1, push: 1, fx: 'water' }),
+    S({ id: 'crushing_blow', name: '분쇄 일격', desc: '한 턴 동안 힘을 모아, 표시된 칸을 내려친다.', kind: 'phys', target: 'tile', range: [1, 1], area: 0, power: 2.3, cooldown: 4, charge: 1, fx: 'blunt' }),
+    S({ id: 'raise_dead', name: '망자 소생', desc: '해골 병사를 일으킨다.', kind: 'summon', target: 'self', range: [0, 0], area: 0, power: 0, cooldown: 5, summon: { def: 'skel_warrior', count: 2 }, fx: 'dark' }),
+    S({ id: 'call_deep', name: '심해의 부름', desc: '심해 척후를 불러낸다.', kind: 'summon', target: 'self', range: [0, 0], area: 0, power: 0, cooldown: 5, summon: { def: 'deep_spawn', count: 2 }, fx: 'water' }),
+    S({ id: 'call_faithful', name: '신도 소집', desc: '광신도를 불러낸다.', kind: 'summon', target: 'self', range: [0, 0], area: 0, power: 0, cooldown: 6, summon: { def: 'cultist', count: 1 }, fx: 'dark' }),
     S({ id: 'bone_rattle', name: '뼈 울림', desc: '주변 망자들을 격동시킨다.', kind: 'buff', target: 'self', range: [0, 0], area: 2, power: 0, cooldown: 4, status: [{ id: 'bless', turns: 2 }], fx: 'dark' }),
     S({ id: 'grave_claw', name: '무덤 손톱', desc: '썩은 손톱이 살을 찢는다.', kind: 'phys', target: 'enemy', range: [1, 1], area: 0, power: 1.1, cooldown: 2, status: [{ id: 'bleed', turns: 2 }], fx: 'slash' }),
     S({ id: 'dark_nova', name: '암흑 폭발', desc: '주위에 죽음의 파동을 터뜨린다.', kind: 'mag', target: 'self', range: [0, 0], area: 2, power: 0.9, cooldown: 3, status: [{ id: 'weak', turns: 2 }], fx: 'dark' }),

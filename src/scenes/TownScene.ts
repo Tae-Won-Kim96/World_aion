@@ -24,6 +24,12 @@ export class TownScene extends Phaser.Scene {
       this.tweens.add({ targets: f, alpha: { from: 0, to: 0.9 }, y: f.y - Phaser.Math.Between(10, 40), duration: Phaser.Math.Between(1400, 3000), yoyo: true, repeat: -1, delay: Phaser.Math.Between(0, 3000) });
     }
 
+    // 혈주는 저택 문 앞에 선다
+    if (!store.s.lordChar.dormant) {
+      const lordKey = ensureSheetTexture(this.textures, lookFromCharacter(store.lord()));
+      const ls = this.add.sprite(500, 600, lordKey, 0).setOrigin(0.5, 1).setScale(3).setDepth(600);
+      ls.play(idleAnim(this, lordKey, 1.6));
+    }
     const chars = [...store.s.roster].filter((c) => c.dormant === 0).sort(() => Math.random() - 0.5).slice(0, 9);
     this.signature = store.s.roster.map((c) => c.id + (c.vampire ? 'v' : '')).join(',');
     chars.forEach((c) => {
@@ -46,7 +52,11 @@ export class TownScene extends Phaser.Scene {
 
     this.unsub = store.onChange(() => {
       const sig = store.s.roster.map((c) => c.id + (c.vampire ? 'v' : '')).join(',');
-      if (sig !== this.signature && this.scene.isActive()) this.scene.restart();
+      if (sig === this.signature || !this.scene.isActive()) return;
+      // 다음 프레임에 확인: 그 사이 다른 씬으로 전환됐다면(시계가 정지됨) 재시작하지 않는다
+      this.time.delayedCall(0, () => {
+        if (this.scene.isActive() && !store.s.run) this.scene.restart();
+      });
     });
     this.events.once('shutdown', () => { this.unsub?.(); this.unsub = null; });
   }
