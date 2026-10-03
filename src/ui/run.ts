@@ -26,7 +26,7 @@ function topBar(run: RunState): HTMLElement {
       h('span', { class: dk === 'bright' ? 'good' : dk === 'dim' ? 'gold' : 'bad' }, `${run.torch} · ${DARKNESS_NAMES[dk]}`)),
     '횃불은 이동할 때마다 줄어든다.\n어스름(50 미만): 기습 15%, 전리품 +10%, 적 피해 +5%\n칠흑(25 미만): 기습 35%, 전리품 +25%, 적 피해 +15%\n밤눈을 가진 동료는 어둠 패널티를 받지 않는다.'),
     h('span', { class: 'res' }, h('span', { class: 'gold' }, '◆'), `${run.gold}`),
-    h('span', { class: 'res' }, h('span', { class: 'vamp' }, '●'), `${run.essence}`),
+    tooltip(h('span', { class: 'res' }, h('span', { class: 'core' }, '◆'), `${run.essence}`), '이번 원정에서 모은 핵 조각'),
     tooltip(h('span', { class: 'res' }, '▣', `${run.loot.length}`), run.loot.length ? `이번 원정 전리품\n${run.loot.map((i) => `· ${i.name}`).join('\n')}\n(전멸하면 잃는다)` : '이번 원정 전리품 없음'),
     h('div', { class: 'relics' }, ...run.relics.map((r) => relicIcon(r, 24))),
     tooltip(h('span', { class: morale > 0 ? 'good' : morale < 0 ? 'bad' : 'dim' }, `사기 ${morale > 0 ? '+' : ''}${morale}`), '파티원 간 진영 상성과 관계(전우·앙숙)로 정해진다.'),

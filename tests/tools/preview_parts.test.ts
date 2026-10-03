@@ -101,4 +101,12 @@ test.skipIf(!process.env.PREVIEW_OUT)('preview races', async () => {
     });
     writePng(`${OUT}/races_${c}.png`, b.w, b.h, b.data, 5, hex('#2a2438'));
   }
+  // 전 종족 한 장 (종족당 1명, 10열)
+  const rows = Math.ceil(races.length / 10);
+  const all = new PixBuf(10 * FRAME_W, rows * FRAME_H);
+  races.forEach((r, i) => {
+    const ch = generateCharacter(5100 + i * 37, { now: 0, race: r, star: 4 });
+    all.blit(drawFrame(lookFromCharacter(ch), 'idle0'), (i % 10) * FRAME_W, Math.floor(i / 10) * FRAME_H);
+  });
+  writePng(`${OUT}/races_all.png`, all.w, all.h, all.data, 3, hex('#2a2438'));
 });
