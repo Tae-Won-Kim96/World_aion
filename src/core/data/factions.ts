@@ -11,6 +11,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   nightcourt: { id: 'nightcourt', name: '밤의 궁정', color: '#b5179e', desc: '대붕괴 이후 밤을 지배하게 된 흡혈귀 귀족들의 궁정.' },
   guild: { id: 'guild', name: '금화 상인길드', color: '#e9c46a', desc: '돈이면 무엇이든 거래하는 대륙 최대의 상단.' },
   wildlands: { id: 'wildlands', name: '거친들 수렵부족', color: '#a7c957', desc: '수인과 사냥꾼들의 자유 부족.' },
+  primal: { id: 'primal', name: '원소의 성소', color: '#ff9f43', desc: '대붕괴 때 풀려난 정령들이 모여 세운 성소. 세계핵을 제 몸의 일부로 여긴다.' },
+  underworld: { id: 'underworld', name: '뒷골목 조합', color: '#8e8e8e', desc: '폐허의 하수도와 암시장을 쥔 조합. 마약, 빚, 장례까지 무엇이든 취급한다.' },
 };
 
 export const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
@@ -29,6 +31,10 @@ const REL: [FactionId, FactionId, number][] = [
   ['infernal', 'nightcourt', 1], ['infernal', 'guild', 1],
   ['nightcourt', 'guild', 1],
   ['wildlands', 'guild', -1],
+  ['primal', 'silverwood', 2], ['primal', 'abyss', -1], ['primal', 'ironhold', -1], ['primal', 'infernal', -2],
+  ['primal', 'wildlands', 1], ['primal', 'underworld', -1],
+  ['underworld', 'guild', 1], ['underworld', 'kingdom', -2], ['underworld', 'radiance', -2], ['underworld', 'nightcourt', 1],
+  ['underworld', 'horde', 1],
 ];
 
 const relMap = new Map<string, number>();

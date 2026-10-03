@@ -1,5 +1,5 @@
 import {
-  type Action, actionReady, actionsOf, affectedUnits, type BattleState, type BEvent, dangerTiles, dist, estimateDamage,
+  type Action, actionReady, actionsOf, affectedUnits, BAD_STATUS, type BattleState, type BEvent, dangerTiles, dist, estimateDamage,
   hasStatus, moveUnit, performAction, reachableTiles, resolvePending, targetTiles, type Unit,
 } from './battle';
 
@@ -34,12 +34,26 @@ function scoreAction(st: BattleState, u: Unit, a: Action, tx: number, ty: number
       score += Math.min(missing, Math.max(u.stats.mag, u.stats.atk * 0.6) * s.power) * 1.3;
       if (t.hp < t.maxHp * 0.35) score += 15;
     }
+    const friendly = t.side === u.side;
     for (const sa of s.status ?? []) {
+      const bad = BAD_STATUS.includes(sa.id);
+      if (friendly && bad) { score -= 5; continue; }
+      if (!friendly && !bad) continue;
       if (hasStatus(t, sa.id)) continue;
       const p = sa.chance ?? 1;
       score += (sa.id === 'stun' ? 14 : sa.id === 'shield' ? 10 : 6) * p;
     }
+    if (s.randomStatus?.length && !friendly) score += 6;
+    if (s.cleanse) {
+      const n = t.statuses.filter((x) => BAD_STATUS.includes(x.id)).length;
+      score += n ? 8 * n : -3;
+    }
+    if (s.sacrifice && friendly) score -= t.hp < t.maxHp * 0.4 ? 25 : 4;
+    if (s.goldOnHit && !friendly) score += 2;
+    if (s.goldOnKill && !friendly && estimateDamage(st, u, t, s) >= t.hp) score += 6;
+    if ((s.pull || s.swap) && !friendly) score += t.attack.range[1] >= 3 ? 5 : 2;
   }
+  if (s.goldGain) score += 4;
   if (s.kind === 'buff' && s.target === 'self' && s.area === 0) {
     const threatened = st.units.some((v) => v.alive && v.side !== u.side && dist(v, u) <= 2);
     score += threatened ? 9 : 2;

@@ -67,12 +67,16 @@ export function eligibleHouses(ch: Character): HouseDef[] {
   return Object.values(HOUSES).filter((h) => houseEligible(h, ch));
 }
 
+/** 일반 집단은 성급이 낮을수록 잘 받아주지 않는다 (전설 집단은 조건만 맞으면) */
+export const HOUSE_GATE: Record<Star, number> = { 1: 0.2, 2: 0.25, 3: 0.45, 4: 0.75, 5: 1 };
+
 /** 조건을 만족하는 가문 중 하나에 확률적으로 소속 */
 export function rollHouse(rng: Rng, ch: Character): HouseDef | undefined {
   const cands = eligibleHouses(ch);
   const legendary = cands.filter((h) => h.rarity === 'legendary');
-  const ordered = [...rng.shuffle(legendary), ...rng.shuffle(cands.filter((h) => h.rarity !== 'legendary'))];
-  for (const h of ordered) if (rng.chance(h.chance)) return h;
+  for (const h of rng.shuffle(legendary)) if (rng.chance(h.chance)) return h;
+  if (!rng.chance(HOUSE_GATE[ch.star])) return undefined;
+  for (const h of rng.shuffle(cands.filter((h) => h.rarity !== 'legendary'))) if (rng.chance(h.chance)) return h;
   return undefined;
 }
 

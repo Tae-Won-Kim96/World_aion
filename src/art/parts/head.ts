@@ -33,8 +33,9 @@ export function applySkinPattern(b: PixBuf, s: LookSpec, g: Geo, R: Ramps): void
       let n: RGBA = 0;
       switch (p) {
         case 'scales':
-          if (y % 2 === 0 && (lx + (y >> 1)) % 2 === 0) n = kr[1];
-          else if (y % 2 === 1 && (lx + (y >> 1)) % 4 === 1) n = kr[3];
+          // 성긴 비늘: 3줄마다 엇갈린 반달
+          if (y % 3 === 0 && (lx + ((y / 3) | 0) * 2) % 4 === 0) n = kr[1];
+          else if (y % 3 === 1 && (lx + ((y / 3) | 0) * 2) % 4 === 1) n = kr[3];
           break;
         case 'bark': {
           const v = (lx * 2 + (y >> 2)) % 5;

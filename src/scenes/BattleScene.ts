@@ -119,15 +119,15 @@ export class BattleScene extends Phaser.Scene {
 
   private spawnUnit(u: Unit): void {
     let look: LookSpec;
-    if (u.side === 'ally') {
-      const ch = store.char(u.charId!)!;
+    if (u.charId) {
+      const ch = store.char(u.charId)!;
       look = lookFromCharacter(ch);
     } else {
       look = lookFromEnemy(ENEMIES[u.enemyDef!], u.seed);
     }
     this.looks.set(u.uid, look);
     const tex = ensureSheetTexture(this.textures, look);
-    const scale = 2 * (u.side === 'enemy' ? (ENEMIES[u.enemyDef!].scale ?? 1) : 1);
+    const scale = 2 * (u.enemyDef ? (ENEMIES[u.enemyDef].scale ?? 1) : 1);
     const f = this.feet(u.x, u.y);
     const shadow = this.add.ellipse(f.x, f.y + 2, 40 * (scale / 2), 12, 0x000000, 0.45).setDepth(8);
     const spr = this.add.sprite(f.x, f.y, tex, 0).setOrigin(0.5, 1).setScale(scale).setFlipX(u.side === 'enemy');
@@ -509,6 +509,12 @@ export class BattleScene extends Phaser.Scene {
         case 'log':
           this.hud.log(e.text);
           break;
+        case 'gold': {
+          const t = byId(e.src);
+          const v = this.vis.get(t.uid)!;
+          this.time.delayedCall(260 / this.speed, () => this.floatText(v.spr.x, v.spr.y - 40 * v.scale - 10, `+${e.amount} 금화`, '#ffd45a', 13));
+          break;
+        }
         case 'charge': {
           const t = byId(e.src);
           const v = this.vis.get(t.uid)!;
@@ -574,7 +580,7 @@ export class BattleScene extends Phaser.Scene {
       store.battleDeath(u.charId, by);
     }
     await new Promise<void>((res) => this.tweens.add({ targets: [v.spr, v.shadow], alpha: 0, duration: 450 / this.speed, onComplete: () => res() }));
-    if (u.side === 'ally') {
+    if (u.side === 'ally' && u.charId) {
       const key = u.vampire ? ensureBufTexture(this.textures, 'coffin', drawCoffin) : ensureBufTexture(this.textures, 'tomb', drawTombstone);
       const img = this.add.image(v.spr.x, v.spr.y, key).setOrigin(0.5, 1).setScale(2).setDepth(v.spr.depth).setAlpha(0);
       this.tweens.add({ targets: img, alpha: 1, duration: 400 });
@@ -610,7 +616,7 @@ export class BattleScene extends Phaser.Scene {
       if (pend) {
         await wait(this, 250 / this.speed);
         await this.playEvents(u, pend);
-      } else if (u.side === 'enemy' || this.auto) {
+      } else if (u.side === 'enemy' || this.auto || !u.charId) {
         await this.aiAct(u);
       } else {
         this.moved = false;
@@ -644,6 +650,7 @@ export class BattleScene extends Phaser.Scene {
       kills: Object.fromEntries(this.st.units.filter((u) => u.side === 'ally' && u.charId).map((u) => [u.charId!, u.kills])),
       cheatDeathUsed: this.st.cheatUsed,
       bonusEssence: this.st.bonusEssence,
+      bonusGold: this.st.bonusGold,
     };
     const summary = store.battleFinished(res);
     this.hud.showResult(victory, summary);

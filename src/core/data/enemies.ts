@@ -78,5 +78,26 @@ export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(
     E({ id: 'high_priest', name: '심해 대사제 크툴락', race: 'deepone', cls: 'abyssal', mul: { hp: 3.8, mag: 1.1, res: 1.4, def: 1.2 }, skills: ['tidal_wave', 'abyss_gaze', 'drain_life', 'abyssal_tide'], tags: ['abyssal', 'boss', 'rift'],
       phases: [{ at: 0.5, text: '크툴락이 심해의 이름을 부르짖는다!', summon: { def: 'deep_spawn', count: 2 }, selfStatus: [{ id: 'regen', turns: 4 }], addSkills: ['call_deep'] }],
       look: { weapon: 'trident', outfit: 'robe', head: 'crown', palette: ['#0a2a3a', '#ffd84a'] }, exp: 110, gold: 150, boss: true, scale: 1.6 }),
+
+    // ===== 떠돌이 위협 (여러 던전) =====
+    E({ id: 'rat_pack', name: '하수도 쥐떼', race: 'ratkin', cls: 'rogue', mul: { hp: 0.45, atk: 0.75, spd: 1.2 }, skills: ['grave_claw'], tags: ['beast', 'vermin'],
+      look: { weapon: 'fist', outfit: 'rags', head: 'none', palette: ['#4a4038', '#6a5a4a'] }, exp: 8, gold: 3, scale: 0.85 }),
+    E({ id: 'feral_junkie', name: '약에 취한 약탈자', race: 'human', cls: 'junkie', mul: { hp: 0.8, atk: 0.9 }, skills: ['withdrawal_rage', 'overdose'], tags: ['bandit'],
+      look: { weapon: 'syringe', outfit: 'rags', head: 'bandana', palette: ['#5a5446', '#8a3a6a'] }, exp: 14, gold: 14 }),
+    E({ id: 'stitched_brute', name: '꿰맨 거한', race: 'revenant', cls: 'butcher', mul: { hp: 1.4, atk: 1.05, def: 1.1 }, skills: ['hack', 'meat_hook', 'snack_break'], tags: ['undead', 'unholy'],
+      look: { weapon: 'cleaver', outfit: 'apron', head: 'none', palette: ['#e8e0d0', '#7a1a1a'] }, exp: 32, gold: 28, elite: true, scale: 1.2,
+      phases: [{ at: 0.4, text: '꿰맨 실밥이 터지며 거한이 날뛴다!', selfStatus: [{ id: 'bless', turns: 3 }] }] }),
+
+    // ===== 아군 소환수 (경험치·금화 없음) =====
+    E({ id: 'thug', name: '고용된 해결사', race: 'halfogre', cls: 'warrior', mul: { hp: 0.6, atk: 0.8 }, skills: ['cleave'], tags: ['summon'],
+      look: { weapon: 'mace', outfit: 'leather', head: 'bandana', palette: ['#3a3a44', '#8a2a2a'] }, exp: 0, gold: 0 }),
+    E({ id: 'skel_worker', name: '해골 일꾼', race: 'skeleton', cls: 'gravedigger', mul: { hp: 0.6, atk: 0.8 }, skills: ['shovel_smack'], tags: ['undead', 'summon'],
+      look: { weapon: 'shovel', outfit: 'bone', head: 'straw', palette: ['#6b4a2f', '#5a5a66'] }, exp: 0, gold: 0 }),
+    E({ id: 'puppet_doll', name: '꼭두각시', race: 'automaton', cls: 'knight', mul: { hp: 0.55, atk: 0.6, def: 1.2 }, skills: ['provoke'], tags: ['construct', 'summon'],
+      look: { weapon: 'sword', offhand: 'buckler', outfit: 'motley', head: 'jester', palette: ['#b5446e', '#f1c40f'] }, exp: 0, gold: 0, scale: 0.85 }),
+    E({ id: 'rat_swarm', name: '쥐떼', race: 'ratkin', cls: 'rogue', mul: { hp: 0.35, atk: 0.6, spd: 1.2 }, skills: ['grave_claw'], tags: ['beast', 'summon'],
+      look: { weapon: 'fist', outfit: 'rags', head: 'none', palette: ['#4a4038', '#6a5a4a'] }, exp: 0, gold: 0, scale: 0.8 }),
+    E({ id: 'tamed_wolf', name: '길들인 늑대', race: 'wolfkin', cls: 'berserker', mul: { hp: 0.6, atk: 0.85, spd: 1.15 }, skills: ['blood_frenzy'], tags: ['beast', 'summon'],
+      look: { weapon: 'fist', outfit: 'fur', head: 'none', palette: ['#6a6a72', '#3a3a44'] }, exp: 0, gold: 0 }),
   ].map((e) => [e.id, e]),
 );

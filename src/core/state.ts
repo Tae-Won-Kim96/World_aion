@@ -52,6 +52,7 @@ export interface BattleResult {
   kills: Record<string, number>;
   cheatDeathUsed: string[];
   bonusEssence?: number;
+  bonusGold?: number;
 }
 
 export interface RewardSummary {
@@ -124,6 +125,7 @@ export function newGame(seed = freshSeed()): SaveData {
 /** 예전 저장 데이터에 새 필드를 채운다 */
 export function migrate(d: SaveData): SaveData {
   d.stash ??= [];
+  for (const f of FACTION_IDS) d.rep[f] ??= 0;
   d.lord.learned ??= [...LORD_START_SKILLS];
   d.lord.equipped ??= [...LORD_START_SKILLS];
   d.lordChar ??= makeLord(d.createdAt ?? 1);
@@ -689,6 +691,7 @@ export class Store {
     if (spec.elite) { run.essence += 1; summary.essence += 1; }
     if (spec.boss) { run.essence += 2; summary.essence += 2; }
     if (res.bonusEssence) { run.essence += res.bonusEssence; summary.essence += res.bonusEssence; }
+    if (res.bonusGold) { run.gold += res.bonusGold; summary.gold += res.bonusGold; summary.lines.push(`전투 중 챙긴 금화 +${res.bonusGold}`); }
     // 전리품
     const drop = this.runRng('drop');
     const lootLines: string[] = [];

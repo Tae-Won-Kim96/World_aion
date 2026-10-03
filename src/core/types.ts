@@ -12,7 +12,8 @@ export type Gender = 'm' | 'f' | 'x';
 
 export type FactionId =
   | 'radiance' | 'kingdom' | 'silverwood' | 'ironhold' | 'horde'
-  | 'abyss' | 'infernal' | 'nightcourt' | 'guild' | 'wildlands';
+  | 'abyss' | 'infernal' | 'nightcourt' | 'guild' | 'wildlands'
+  | 'primal' | 'underworld';
 
 export type Affinity = Partial<Record<FactionId, number>>;
 
@@ -20,10 +21,16 @@ export type RaceId =
   | 'divine' | 'angel' | 'demon' | 'elf' | 'darkelf' | 'dwarf' | 'gnome' | 'halfling'
   | 'imp' | 'human' | 'orc' | 'troll' | 'deepone' | 'beastkin'
   | 'vampire'
+  // 수인·파충류·거인
+  | 'catkin' | 'foxkin' | 'wolfkin' | 'rabbitkin' | 'bearkin' | 'birdfolk'
+  | 'lizardfolk' | 'dragonkin' | 'kobold' | 'minotaur' | 'halfogre'
+  // 요정·정령·기타
+  | 'merfolk' | 'satyr' | 'dokkaebi' | 'fire_spirit' | 'water_spirit' | 'earth_spirit' | 'wind_spirit'
+  | 'dryad' | 'mushfolk' | 'pixie' | 'automaton' | 'revenant' | 'shade'
   // 지휘관 전용
   | 'corebearer'
   // 적 전용
-  | 'skeleton' | 'ghoul' | 'goblin' | 'wraith';
+  | 'skeleton' | 'ghoul' | 'goblin' | 'wraith' | 'ratkin';
 
 export type Role = 'tank' | 'melee' | 'ranged' | 'caster' | 'healer' | 'support';
 
@@ -80,6 +87,14 @@ export interface SkillDef {
   hpCost?: number;   // 시전자 최대체력 비율 소모
   charge?: number;   // 예고 공격: n턴 영창 후 지정 칸에 발동
   summon?: { def: string; count: number };
+  pull?: number;            // 대상을 시전자 쪽으로 n칸 끌어옴
+  swap?: boolean;           // 시전자와 대상의 자리를 바꿈
+  randomStatus?: StatusApply[]; // 이 중 하나를 무작위로
+  cleanse?: boolean;        // 대상의 나쁜 상태 제거
+  sacrifice?: number;       // 대상 아군 최대체력 비율 소모 (치명상 없음)
+  goldOnHit?: number;       // 적중 시 금화
+  goldOnKill?: number;      // 처치 시 금화
+  goldGain?: number;        // 시전 시 금화
   fx: FxKind;
   projectile?: boolean;
 }
@@ -225,6 +240,7 @@ export interface HouseDef {
   emblem: string;           // 표시용 문자
   forbidBound?: boolean;  // 결속 시 파문
   rarity: 'named' | 'legendary';
+  motto?: string;           // 표어 (대사·툴팁)
 }
 
 export interface FactionDef {

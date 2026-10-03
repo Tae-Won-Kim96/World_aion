@@ -33,7 +33,7 @@ export function houseChip(id: string | undefined): HTMLElement | null {
   if (!id) return null;
   const hd = HOUSES[id];
   const el = h('span', { class: 'chip house', style: `--hc:${hd.colors[0]};--hc2:${hd.colors[1]}` }, `${hd.emblem} ${hd.name}`);
-  return tooltip(el, `${hd.name}${hd.rarity === 'legendary' ? ' (전설)' : ''}\n${hd.desc}\n\n[${hd.perk.name}] ${hd.perk.desc}`);
+  return tooltip(el, `${hd.name}${hd.rarity === 'legendary' ? ' (전설)' : ''}${hd.motto ? `\n「${hd.motto}」` : ''}\n${hd.desc}\n\n[${hd.perk.name}] ${hd.perk.desc}`);
 }
 
 export function itemIcon(it: Item, size = 32): HTMLImageElement {
@@ -162,6 +162,7 @@ export function charDetail(ch: Character, actions: HTMLElement | null = null, on
       hd ? h('div', null,
         h('h3', null, '소속'),
         h('div', null, houseChip(hd.id)),
+        hd.motto ? h('div', { class: 'small', style: { marginTop: '4px', fontStyle: 'italic', color: hd.colors[1] } }, `「${hd.motto}」`) : null,
         h('div', { class: 'small dim', style: { marginTop: '4px', lineHeight: '1.6' } }, hd.desc),
         h('div', { class: 'small gold' }, `[${hd.perk.name}] ${hd.perk.desc}`),
       ) : null,

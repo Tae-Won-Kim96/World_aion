@@ -66,6 +66,7 @@ export type BEvent =
   | { t: 'interrupt'; src: string }
   | { t: 'phase'; src: string; text: string }
   | { t: 'spawn'; uid: string }
+  | { t: 'gold'; src: string; amount: number }
   | { t: 'log'; text: string };
 
 export interface BattleState {
@@ -83,6 +84,7 @@ export interface BattleState {
   relics: string[];
   spawnN: number;
   bonusEssence: number;
+  bonusGold: number;
 }
 
 export interface Action { id: string; name: string; skill: SkillDef; isAttack: boolean }
@@ -149,7 +151,7 @@ export function createBattle(input: BattleInput): BattleState {
   const st: BattleState = {
     w: GRID_W, h: GRID_H, obstacles: [], units: [], turn: 0, rng,
     darkness: input.spec.darkness, morale: input.morale, over: null, log: [], cheatUsed: [],
-    relics: [...(input.relics ?? [])], spawnN: 0, bonusEssence: 0,
+    relics: [...(input.relics ?? [])], spawnN: 0, bonusEssence: 0, bonusGold: 0,
   };
   const allies = input.party.filter((p) => p.hp > 0).map((p) => unitFromChar(p.char, p.hp, input.morale));
   const enemies = input.spec.enemies.map((e, i) => unitFromEnemy(e.def, e.level, e.seed, i));
@@ -426,8 +428,14 @@ export function endTurn(st: BattleState, u: Unit): void {
 
 export function checkOver(st: BattleState): BattleState['over'] {
   if (!st.units.some((u) => u.side === 'enemy' && u.alive)) st.over = 'victory';
-  else if (!st.units.some((u) => u.side === 'ally' && u.alive)) st.over = 'defeat';
+  // 소환수만 남으면 패배 (동료가 모두 쓰러졌다)
+  else if (!st.units.some((u) => u.side === 'ally' && u.alive && !isSummon(u))) st.over = 'defeat';
   return st.over;
+}
+
+/** 아군 소환수 (동료 캐릭터가 아닌 아군) */
+export function isSummon(u: Unit): boolean {
+  return u.side === 'ally' && !u.charId;
 }
 
 // ---------------------------------------------------------------- 이동
@@ -564,8 +572,7 @@ function damageCore(st: BattleState, u: Unit, t: Unit, s: SkillDef, crit: boolea
   let raw = base * s.power * 1.25 * atkMul(u);
   const def = (kind === 'phys' ? t.stats.def : t.stats.res) * (1 - (s.pierce ?? 0));
   raw *= 30 / (30 + Math.max(0, def) * 2.5);
-  const tags = [...t.tags];
-  if (t.hp < t.maxHp * 0.5) tags.push('wounded');
+  const tags = unitTags(t);
   if (s.bonusVsTag && tags.includes(s.bonusVsTag.tag)) raw *= s.bonusVsTag.mul;
   let vs = 0;
   for (const tag of tags) vs += u.eff.dmgVsTag[tag] ?? 0;
@@ -586,6 +593,15 @@ function damageCore(st: BattleState, u: Unit, t: Unit, s: SkillDef, crit: boolea
   if (u.side === 'enemy' && !t.eff.nightVision) raw *= st.darkness === 'dark' ? 1.15 : st.darkness === 'dim' ? 1.05 : 1;
   raw *= variance;
   return { dmg: Math.max(1, Math.round(raw)) };
+}
+
+/** 고정 태그 + 상태에서 오는 태그 (빈사·출혈 중·불타는 중 …) */
+const STATUS_TAGS: Partial<Record<StatusId, string>> = { bleed: 'bleeding', poison: 'poisoned', burn: 'burning', stun: 'stunned', slow: 'slowed' };
+export function unitTags(t: Unit): string[] {
+  const tags = [...t.tags];
+  if (t.hp < t.maxHp * 0.5) tags.push('wounded');
+  for (const st of t.statuses) { const tag = STATUS_TAGS[st.id]; if (tag) tags.push(tag); }
+  return tags;
 }
 
 function healAmount(u: Unit, s: SkillDef): number {
@@ -660,6 +676,34 @@ function onAllyKill(st: BattleState, u: Unit, ev: BEvent[]): void {
   }
 }
 
+function gainGold(st: BattleState, u: Unit, n: number, ev: BEvent[]): void {
+  if (u.side !== 'ally') return;
+  st.bonusGold += n;
+  ev.push({ t: 'gold', src: u.uid, amount: n });
+}
+
+/** 대상을 시전자 쪽으로 최대 n칸 끌어온다 */
+function pullToward(st: BattleState, u: Unit, t: Unit, n: number, ev: BEvent[]): void {
+  let moved = false;
+  for (let i = 0; i < n; i++) {
+    const dx = Math.sign(u.x - t.x);
+    const dy = Math.sign(u.y - t.y);
+    // 더 먼 축부터 줄인다
+    const steps: [number, number][] = Math.abs(u.x - t.x) >= Math.abs(u.y - t.y) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+    let ok = false;
+    for (const [sx, sy] of steps) {
+      if (sx === 0 && sy === 0) continue;
+      const nx = t.x + sx;
+      const ny = t.y + sy;
+      if (blocked(st, nx, ny) || unitAt(st, nx, ny)) continue;
+      t.x = nx; t.y = ny; ok = true; moved = true;
+      break;
+    }
+    if (!ok) break;
+  }
+  if (moved) ev.push({ t: 'push', dst: t.uid, x: t.x, y: t.y });
+}
+
 /** 행동 실행 */
 export function performAction(st: BattleState, u: Unit, a: Action, tx: number, ty: number, resolving = false): BEvent[] {
   const ev: BEvent[] = [];
@@ -682,18 +726,31 @@ export function performAction(st: BattleState, u: Unit, a: Action, tx: number, t
     u.hp = Math.max(1, u.hp - cost);
   }
   if (s.kind === 'summon' && s.summon) spawnEnemies(st, s.summon.def, s.summon.count, u, ev);
+  if (s.goldGain) gainGold(st, u, s.goldGain, ev);
   let dealt = 0;
   for (const t of targets) {
     if (!t.alive) continue;
+    if (s.sacrifice && t !== u) {
+      const cost = Math.min(t.hp - 1, Math.round(t.maxHp * s.sacrifice));
+      if (cost > 0) { t.hp -= cost; ev.push({ t: 'dmg', src: u.uid, dst: t.uid, amount: cost, crit: false, fx: 'blood' }); }
+    }
     if (s.kind === 'phys' || s.kind === 'mag' || (s.kind === 'debuff' && s.power > 0)) {
       dealt += dealDamage(st, u, t, s, ev);
+      if (s.goldOnHit) gainGold(st, u, s.goldOnHit, ev);
+      if (s.goldOnKill && !t.alive) gainGold(st, u, s.goldOnKill, ev);
     }
     if (s.kind === 'heal') {
       const amt = Math.min(healAmount(u, s), t.maxHp - t.hp);
       t.hp += amt;
       ev.push({ t: 'heal', src: u.uid, dst: t.uid, amount: amt });
     }
+    if (t.alive && s.cleanse) {
+      const before = t.statuses.length;
+      t.statuses = t.statuses.filter((x) => !BAD_STATUS.includes(x.id));
+      if (t.statuses.length < before) ev.push({ t: 'log', text: `${t.name}의 나쁜 상태가 씻겨 나갔다.` });
+    }
     if (t.alive) for (const sa of s.status ?? []) applyStatus(st, u, t, sa, ev);
+    if (t.alive && s.randomStatus?.length) applyStatus(st, u, t, st.rng.pick(s.randomStatus), ev);
     if (t.alive && s.push) {
       const dx = Math.sign(t.x - u.x);
       const dy = dx === 0 ? Math.sign(t.y - u.y) : 0;
@@ -704,6 +761,14 @@ export function performAction(st: BattleState, u: Unit, a: Action, tx: number, t
         t.y = ny;
         ev.push({ t: 'push', dst: t.uid, x: nx, y: ny });
       }
+    }
+    if (t.alive && s.pull) pullToward(st, u, t, s.pull, ev);
+    if (t.alive && s.swap && !t.boss && t !== u) {
+      const [ox, oy] = [u.x, u.y];
+      u.x = t.x; u.y = t.y;
+      t.x = ox; t.y = oy;
+      ev.push({ t: 'push', dst: u.uid, x: u.x, y: u.y });
+      ev.push({ t: 'push', dst: t.uid, x: t.x, y: t.y });
     }
   }
   for (const sa of s.selfStatus ?? []) applyStatus(st, u, u, sa, ev);

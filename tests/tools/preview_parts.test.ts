@@ -85,3 +85,20 @@ test.skipIf(!process.env.PREVIEW_OUT || !process.env.PREVIEW_ZOOM)('preview zoom
   specs.forEach((s, k) => b.blit(drawFrame(s, 'idle0'), k * FRAME_W, 0));
   writePng(`${OUT}/zoom.png`, b.w, b.h, b.data, 8, hex('#2a2438'));
 });
+
+// 종족별 견본 (종족마다 2명)
+test.skipIf(!process.env.PREVIEW_OUT)('preview races', async () => {
+  const { PLAYABLE_RACES } = await import('../../src/core/data/races');
+  const races = PLAYABLE_RACES.map((r) => r.id);
+  for (let c = 0; c * 10 < races.length; c++) {
+    const chunk = races.slice(c * 10, c * 10 + 10);
+    const b = new PixBuf(10 * FRAME_W, 2 * FRAME_H);
+    chunk.forEach((r, i) => {
+      for (let k = 0; k < 2; k++) {
+        const ch = generateCharacter(3000 + i * 97 + k * 31 + c * 7, { now: 0, race: r, star: 4 });
+        b.blit(drawFrame(lookFromCharacter(ch), 'idle0'), i * FRAME_W, k * FRAME_H);
+      }
+    });
+    writePng(`${OUT}/races_${c}.png`, b.w, b.h, b.data, 5, hex('#2a2438'));
+  }
+});
